@@ -11,34 +11,21 @@ int main()
 {
 	VulkanEngine ve;
 
-	std::cout << "Hello World!" << std::endl;
-
-	if (!glfwInit())
-	{
-		return -1;
-	}
-	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-
-	GLFWwindow* window = glfwCreateWindow(640, 480, "Vulkan!", NULL, NULL);
-	if(!window)
-	{
-		glfwTerminate();
-		return -1;
-	}
 
 	ve.init_vulkan();
 
-	while (!glfwWindowShouldClose(window))
+	while (!glfwWindowShouldClose(ve._window))
 	{
 		// keep running
 		glfwPollEvents();
-		if (glfwGetKey(window, GLFW_KEY_ESCAPE)  ==  GLFW_PRESS)
+		if (glfwGetKey(ve._window, GLFW_KEY_ESCAPE)  ==  GLFW_PRESS)
 		{
-			glfwSetWindowShouldClose(window, GLFW_TRUE);
+			glfwSetWindowShouldClose(ve._window, GLFW_TRUE);
 		}
 	}
+	ve.shutdown_vulkan();
 
-	glfwDestroyWindow(window);
-	glfwTerminate();
+	// wait for input so I can read my validation errors :)
+	system("pause");
 	return 0;
 }
