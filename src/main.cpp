@@ -18,6 +18,7 @@ int main()
 	{
 		// keep running
 		glfwPollEvents();
+		ve.drawFrame();
 		if (glfwGetKey(ve._window, GLFW_KEY_ESCAPE)  ==  GLFW_PRESS)
 		{
 			glfwSetWindowShouldClose(ve._window, GLFW_TRUE);
