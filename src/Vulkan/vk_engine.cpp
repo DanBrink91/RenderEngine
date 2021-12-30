@@ -1,4 +1,8 @@
 #include "vk_engine.h"
+#define GLM_ENABLE_EXPERIMENTAL
+#include "glm/ext.hpp"
+#include <glm/gtc/matrix_transform.hpp>
+
 
 void VulkanEngine::init_vulkan()
 {
@@ -59,8 +63,13 @@ void VulkanEngine::init_vulkan()
 	else {
 		std::cout << "created instance" << std::endl;
 	}
+
+	drawSprite(400, 300, 300, 300);
 	drawSprite(100, 100, 250, 250);
-	
+
+	for (auto i: _spriteVertices)
+    	std::cout << glm::to_string(i.position) << std::endl;
+
 	find_physical_device();
 	create_device();
 	createSwapChain();
@@ -79,20 +88,19 @@ void VulkanEngine::init_vulkan()
 
 void VulkanEngine::drawSprite(int x, int y, int width, int height)
 {
-	float halfWidth = _windowWidth / 2.0;
-	float halfHeight = _windowHeight / 2.0;
+	float screenSpaceLeft = (float(x) / _windowWidth) * 2.0 - 1.0;
+	float screenSpaceRight = (float(x + width) / _windowWidth) * 2.0 - 1.0;
 
-	float screenSpaceX = (x - halfWidth) / halfWidth;
-	float screenSpaceY = (y - halfHeight) / halfHeight;
+	float screenSpaceTop = (float(y) / _windowHeight) * 2.0 - 1.0;
+	float screenSpaceBottom = (float(y + height) / _windowHeight) * 2.0 - 1.0;
 
-	float screenSpaceWidth = (width - halfWidth) / halfWidth;
-	float screenSpaceHeight = (height - halfHeight) / halfHeight;
 
 	int indexStart = _spriteVertices.size();
-	_spriteVertices.push_back({{screenSpaceX + screenSpaceWidth, screenSpaceY}, {1.0, 0.0}});
-	_spriteVertices.push_back({{screenSpaceX + screenSpaceWidth, screenSpaceY + screenSpaceHeight}, {1.0, 1.0}});
-	_spriteVertices.push_back({{screenSpaceX, screenSpaceY + screenSpaceHeight}, {0.0, 1.0}});
-	_spriteVertices.push_back({{screenSpaceX, screenSpaceY}, {0.0, 0.0}});
+
+	_spriteVertices.push_back({{screenSpaceRight, screenSpaceTop}, {1.0, 0.0}});
+	_spriteVertices.push_back({{screenSpaceRight , screenSpaceBottom}, {1.0, 1.0}});
+	_spriteVertices.push_back({{screenSpaceLeft, screenSpaceBottom}, {0.0, 1.0}});
+	_spriteVertices.push_back({{screenSpaceLeft, screenSpaceTop}, {0.0, 0.0}});
 	
 	_indices.push_back((uint16_t)indexStart);
 	_indices.push_back((uint16_t)indexStart + 1);
@@ -554,7 +562,7 @@ void VulkanEngine::createGraphicsPipeline()
 	rasterizer.rasterizerDiscardEnable = VK_FALSE;
 	rasterizer.polygonMode = VK_POLYGON_MODE_FILL; // could draw as lines or points here for debugging
 	rasterizer.lineWidth = 1.0f;
-	rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+	rasterizer.cullMode = VK_CULL_MODE_NONE;
 	rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
 	rasterizer.depthBiasEnable = VK_FALSE;
 	rasterizer.depthBiasConstantFactor = 0.0f; // Optional
@@ -789,7 +797,7 @@ void VulkanEngine::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkM
 }
 void VulkanEngine::createIndexBuffer()
 {
-	VkDeviceSize bufferSize = sizeof(uint32_t) * _indices.size();
+	VkDeviceSize bufferSize = sizeof(uint16_t) * _indices.size();
 	createBuffer(bufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, _indexBuffer, _indexBufferMemory);
 
 	void* data;
