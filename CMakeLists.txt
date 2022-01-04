@@ -26,7 +26,8 @@ add_subdirectory(external/glfw)
 
 #include_directories will tell the linker to look for header files there.
 include_directories( PUBLIC external/glfw/include
-					 PUBLIC external/glm)
+					 PUBLIC external/glm
+					 PUBLIC external)
 
 target_link_directories(${PROJECT_NAME} PRIVATE external/glfw/src)
 

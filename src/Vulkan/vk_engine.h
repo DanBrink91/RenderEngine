@@ -72,6 +72,10 @@ private:
 	void createGraphicsPipeline();
 	void createFramebuffers();
 	void createSyncObjects();
+	VkCommandBuffer beginSingleTimeCommands();
+	void endSingleTimeCommands(VkCommandBuffer commandBuffer);
+	void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
+	void createTextureImage();
 	uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 	void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
 	void createIndexBuffer();
@@ -105,6 +109,9 @@ private:
 
 	std::vector<VkBuffer> _vertexBuffers;
 	std::vector<VkDeviceMemory> _vertexBuffersMemory;
+
+	VkImage _textureImage;
+	VkDeviceMemory _textureImageMemory;
 
 	const std::vector<const char*> deviceExtensions = {
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME
