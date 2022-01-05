@@ -6,6 +6,7 @@
 #include <GLFW/glfw3native.h>
 
 #include <algorithm>
+#include <array>
 #include <vector>
 #include <iostream>
 #include <fstream>
@@ -77,6 +78,9 @@ private:
 	void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
 	void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
 	void createTextureImage();
+	void createTextureImageView();
+	void createTextureSampler();
+	VkImageView createImageView(VkImage image, VkFormat format);
 	uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 	void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
 	void createIndexBuffer();
@@ -113,6 +117,8 @@ private:
 
 	VkImage _textureImage;
 	VkDeviceMemory _textureImageMemory;
+	VkImageView _textureImageView;
+	VkSampler _textureSampler;
 
 	const std::vector<const char*> deviceExtensions = {
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME
