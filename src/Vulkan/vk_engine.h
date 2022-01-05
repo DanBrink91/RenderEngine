@@ -16,6 +16,9 @@
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 
+
+#include <stb_truetype.h>
+
 struct SpriteVertexData
 {
 	glm::vec2 position;
@@ -34,6 +37,7 @@ public:
 	void shutdown_vulkan();
 	void drawFrame();
 	void drawSprite(int x, int y, int width, int height);
+	void drawText(float x, float y, char* text);
 
 	GLFWwindow* _window;
 	VkInstance _instance;
@@ -77,6 +81,7 @@ private:
 	void endSingleTimeCommands(VkCommandBuffer commandBuffer);
 	void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
 	void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
+	void createFontTexture();
 	void createTextureImage();
 	void createTextureImageView();
 	void createTextureSampler();
@@ -127,5 +132,6 @@ private:
 	std::vector<SpriteVertexData> _spriteVertices;
 
 	std::vector<uint16_t> _indices;
+	stbtt_bakedchar cdata[96]; // ASCII 32..126 is 95 glyphs
 
 };

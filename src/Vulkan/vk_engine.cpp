@@ -7,6 +7,8 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
+#define STB_TRUETYPE_IMPLEMENTATION
+#include <stb_truetype.h>
 
 void VulkanEngine::init_vulkan()
 {
@@ -68,8 +70,20 @@ void VulkanEngine::init_vulkan()
 		std::cout << "created instance" << std::endl;
 	}
 
-	drawSprite(400, 300, 64*3, 64*2);
-	drawSprite(100, 100, 64*3, 64*2);
+	drawSprite(200, 200, 512, 512);
+	// drawSprite(100, 100, 64*3, 64*2);
+	//createFontTexture();
+	
+	// stbtt_aligned_quad q;
+	// float x, y;
+	// const char* text = "Hello World!";
+
+ // 	stbtt_GetBakedQuad(cdata, 512,512, *text, &x,&y,&q,1);//1=opengl & d3d10+,0=d3d9
+ // 	std::cout << q.x0 << ", " << q.y0 << std::endl;
+ 	// glTexCoord2f(q.s0,q.t0); glVertex2f(q.x0,q.y0);
+ 	// glTexCoord2f(q.s1,q.t0); glVertex2f(q.x1,q.y0);
+ 	// glTexCoord2f(q.s1,q.t1); glVertex2f(q.x1,q.y1);
+ 	// glTexCoord2f(q.s0,q.t1); glVertex2f(q.x0,q.y1);
 
 	find_physical_device();
 	create_device();
@@ -86,6 +100,7 @@ void VulkanEngine::init_vulkan()
 	createTextureSampler();
 	createDescriptorPool();
 	createDescriptorSets();
+	drawText(50, 50, "Hello World!");
 	createCommandBuffers();
 	createSyncObjects();
 }
@@ -112,6 +127,22 @@ void VulkanEngine::drawSprite(int x, int y, int width, int height)
 	_indices.push_back((uint16_t)indexStart + 3);
 	_indices.push_back((uint16_t)indexStart);
 	_indices.push_back((uint16_t)indexStart + 2);
+}
+
+void VulkanEngine::drawText(float x, float y, char* text) 
+{
+	 while (*text) {
+      if (*text >= 32 && *text < 128) {
+         stbtt_aligned_quad q;
+         stbtt_GetBakedQuad(cdata, 512,512, *text-32, &x,&y,&q,1);//1=opengl & d3d10+,0=d3d9
+         std::cout << q.x0/512 << " ," << q.y0/512 << std::endl;
+      //    glTexCoord2f(q.s0,q.t0); glVertex2f(q.x0,q.y0);
+      //    glTexCoord2f(q.s1,q.t0); glVertex2f(q.x1,q.y0);
+      //    glTexCoord2f(q.s1,q.t1); glVertex2f(q.x1,q.y1);
+      //    glTexCoord2f(q.s0,q.t1); glVertex2f(q.x0,q.y1);
+      }
+      ++text;
+   }
 }
 
 // TODO: Pick from different devices instead of just picking the first one
@@ -684,14 +715,27 @@ void VulkanEngine::createSyncObjects()
 	}
 }
 
+void VulkanEngine::createFontTexture() 
+{
+	unsigned char temp_bitmap[512*512];
+	auto ttf_buffer = readFile("resources/fonts/Roboto-Regular.ttf");
+   	stbtt_BakeFontBitmap(reinterpret_cast<const unsigned char*>(ttf_buffer.data()),0, 16.0, temp_bitmap,512,512, 32,96, cdata); // no guarantee this fits!
+   	//glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, 512,512, 0, GL_ALPHA, GL_UNSIGNED_BYTE, temp_bitmap);
+}
+
 void VulkanEngine::createTextureImage()
 {
-	 int texWidth, texHeight, texChannels;
-    stbi_uc* pixels = stbi_load("resources/sprites/diceRed.png", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-    VkDeviceSize imageSize = texWidth * texHeight * 4;
+	unsigned char temp_bitmap[512*512];
+	auto ttf_buffer = readFile("resources/fonts/Roboto-Regular.ttf");
+   	auto res = stbtt_BakeFontBitmap(reinterpret_cast<const unsigned char*>(ttf_buffer.data()),0, 16.0, temp_bitmap,512,512, 32,96, cdata); // no guarantee this fits!
+   	std::cout << sizeof(temp_bitmap) << std::endl;
 
-    if (!pixels) 
-        throw std::runtime_error("failed to load texture image!");
+	// int texWidth, texHeight, texChannels;
+ //    stbi_uc* pixels = stbi_load("resources/sprites/diceRed.png", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+    VkDeviceSize imageSize = 512 * 512; //texWidth * texHeight * 4;
+
+    // if (!pixels) 
+    //     throw std::runtime_error("failed to load texture image!");
     
     VkBuffer stagingBuffer;
     VkDeviceMemory stagingBufferMemory;
@@ -699,19 +743,19 @@ void VulkanEngine::createTextureImage()
     createBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
     void* data;
 	vkMapMemory(_device, stagingBufferMemory, 0, imageSize, 0, &data);
-	    memcpy(data, pixels, static_cast<size_t>(imageSize));
+	    memcpy(data, temp_bitmap, static_cast<size_t>(imageSize));
 	vkUnmapMemory(_device, stagingBufferMemory);
-	stbi_image_free(pixels);
+	// stbi_image_free(pixels);
 
 	VkImageCreateInfo imageInfo{};
 	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 	imageInfo.imageType = VK_IMAGE_TYPE_2D;
-	imageInfo.extent.width = static_cast<uint32_t>(texWidth);
-	imageInfo.extent.height = static_cast<uint32_t>(texHeight);
+	imageInfo.extent.width = 512;//static_cast<uint32_t>(texWidth);
+	imageInfo.extent.height = 512;//static_cast<uint32_t>(texHeight);
 	imageInfo.extent.depth = 1;
 	imageInfo.mipLevels = 1;
 	imageInfo.arrayLayers = 1;
-	imageInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+	imageInfo.format = VK_FORMAT_R8_SRGB;
 	imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
 	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
@@ -737,9 +781,11 @@ void VulkanEngine::createTextureImage()
 	}
 
 	vkBindImageMemory(_device, _textureImage, _textureImageMemory, 0);
-	transitionImageLayout(_textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-	copyBufferToImage(stagingBuffer, _textureImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
-	transitionImageLayout(_textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	transitionImageLayout(_textureImage, VK_FORMAT_R8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+	copyBufferToImage(stagingBuffer, _textureImage, 512, 512);
+
+	//copyBufferToImage(stagingBuffer, _textureImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
+	transitionImageLayout(_textureImage, VK_FORMAT_R8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
 	vkDestroyBuffer(_device, stagingBuffer, nullptr);
     vkFreeMemory(_device, stagingBufferMemory, nullptr);
@@ -953,7 +999,7 @@ VkImageView VulkanEngine::createImageView(VkImage image, VkFormat format)
 
 void VulkanEngine::createTextureImageView() 
 {
-	_textureImageView = createImageView(_textureImage, VK_FORMAT_R8G8B8A8_SRGB);
+	_textureImageView = createImageView(_textureImage, VK_FORMAT_R8_SRGB);
 }
 
 void VulkanEngine::createTextureSampler() 
