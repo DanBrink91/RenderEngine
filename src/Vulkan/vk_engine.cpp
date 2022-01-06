@@ -228,10 +228,17 @@ void VulkanEngine::create_device()
 	queueCreateInfo.queueCount = 1;
 	queueCreateInfo.pQueuePriorities = &priorities[0];
 
+
+   	VkPhysicalDeviceDescriptorIndexingFeaturesEXT pdIndexing = {};
+	pdIndexing.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES_EXT;
+	pdIndexing.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
+	pdIndexing.runtimeDescriptorArray = VK_TRUE;
+	pdIndexing.descriptorBindingVariableDescriptorCount = VK_TRUE;
+
 	// CREATE LOGICAL DEVICE
 	VkDeviceCreateInfo device_info = {};
 	device_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-	device_info.pNext = NULL;
+	device_info.pNext = &pdIndexing;
 	device_info.queueCreateInfoCount = 1;
 	device_info.pQueueCreateInfos = &queueCreateInfo;
 	device_info.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());;
