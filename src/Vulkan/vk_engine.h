@@ -46,7 +46,7 @@ public:
 	VkQueue _presentQueue, _graphicsQueue;
 	VkDevice _device;
 	VkSurfaceKHR _surface;
-	VkCommandPool _pool;
+	std::vector<VkCommandPool> _commandPools;
 	std::vector<VkCommandBuffer> _commandBuffers;
 	VkRenderPass _renderPass;
 	VkDescriptorSetLayout _descriptorSetLayout;
@@ -63,8 +63,9 @@ private:
 	void recreateSwapChain();
 	void find_physical_device();
 	void create_device();
-	void createCommandPool();
+	void createCommandPools();
 	void createCommandBuffers();
+	void updateCommandBuffer(uint32_t currentImage);
 	VkSurfaceFormatKHR chooseSwapSurfaceFormat();
 	VkPresentModeKHR chooseSwapPresentMode();
 	VkExtent2D chooseSwapExtent();
@@ -114,8 +115,8 @@ private:
 	std::vector<VkFence> _inFlightFences;
 	std::vector<VkFence> _imagesInFlight;
 
-	VkBuffer _indexBuffer;
-	VkDeviceMemory  _indexBufferMemory;
+	std::vector<VkBuffer> _indexBuffers;
+	std::vector<VkDeviceMemory>  _indexBuffersMemory;
 
 	std::vector<VkBuffer> _vertexBuffers;
 	std::vector<VkDeviceMemory> _vertexBuffersMemory;
@@ -134,5 +135,9 @@ private:
 
 	std::vector<uint16_t> _indices;
 	stbtt_bakedchar cdata[96]; // ASCII 32..126 is 95 glyphs
+
+	const int MAX_SPRITES = 1024;
+	const int MAX_INDICES = 1024;
+	const int MAX_TEXTURES = 1024;
 
 };

@@ -18,6 +18,11 @@ int main()
 	{
 		// keep running
 		glfwPollEvents();
+		
+		ve.drawSprite(50, 50, 512, 512);
+		ve.drawText(200, 200, "Hello World!");
+		ve.drawText(200, 350, "wowzers");
+
 		ve.drawFrame();
 		if (glfwGetKey(ve._window, GLFW_KEY_ESCAPE)  ==  GLFW_PRESS)
 		{

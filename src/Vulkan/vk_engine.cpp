@@ -70,7 +70,6 @@ void VulkanEngine::init_vulkan()
 		std::cout << "created instance" << std::endl;
 	}
 
-	drawSprite(200, 200, 512, 512);
 	// drawSprite(100, 100, 64*3, 64*2);
 	//createFontTexture();
 	
@@ -94,13 +93,12 @@ void VulkanEngine::init_vulkan()
 	createBuffers();
 	createGraphicsPipeline();
 	createFramebuffers();
-	createCommandPool();
+	createCommandPools();
 	createTextureImage();
 	createTextureImageView();
 	createTextureSampler();
 	createDescriptorPool();
 	createDescriptorSets();
-	drawText(50, 50, "Hello World!");
 	createCommandBuffers();
 	createSyncObjects();
 }
@@ -132,17 +130,33 @@ void VulkanEngine::drawSprite(int x, int y, int width, int height)
 void VulkanEngine::drawText(float x, float y, char* text) 
 {
 	 while (*text) {
-      if (*text >= 32 && *text < 128) {
-         stbtt_aligned_quad q;
-         stbtt_GetBakedQuad(cdata, 512,512, *text-32, &x,&y,&q,1);//1=opengl & d3d10+,0=d3d9
-         std::cout << q.x0/512 << " ," << q.y0/512 << std::endl;
-      //    glTexCoord2f(q.s0,q.t0); glVertex2f(q.x0,q.y0);
-      //    glTexCoord2f(q.s1,q.t0); glVertex2f(q.x1,q.y0);
-      //    glTexCoord2f(q.s1,q.t1); glVertex2f(q.x1,q.y1);
-      //    glTexCoord2f(q.s0,q.t1); glVertex2f(q.x0,q.y1);
-      }
-      ++text;
-   }
+	  if (*text >= 32 && *text < 128) {
+	     stbtt_aligned_quad q;
+	     stbtt_GetBakedQuad(cdata, 512,512, *text-32, &x,&y,&q,1);
+
+	 	int indexStart = _spriteVertices.size();
+
+
+	     float x0 = float(q.x0) / _windowWidth * 2.0 - 1.0;
+	     float x1 = float(q.x1) / _windowWidth * 2.0 - 1.0;
+		 float y0 = float(q.y0) / _windowHeight * 2.0 - 1.0;
+	     float y1 = float(q.y1) / _windowHeight * 2.0 - 1.0;
+
+	     _spriteVertices.push_back({{x1, y0}, {q.s1, q.t0}});
+	     _spriteVertices.push_back({{x1, y1}, {q.s1, q.t1}});
+	     _spriteVertices.push_back({{x0, y1}, {q.s0, q.t1}});
+	     _spriteVertices.push_back({{x0, y0}, {q.s0, q.t0}});
+
+
+	     _indices.push_back((uint16_t)indexStart);
+	     _indices.push_back((uint16_t)indexStart + 1);
+	     _indices.push_back((uint16_t)indexStart + 2);
+	     _indices.push_back((uint16_t)indexStart + 3);
+	     _indices.push_back((uint16_t)indexStart);
+	     _indices.push_back((uint16_t)indexStart + 2);
+	  }
+	  ++text;
+	}
 }
 
 // TODO: Pick from different devices instead of just picking the first one
@@ -213,6 +227,8 @@ void VulkanEngine::create_device()
 {
 	VkPhysicalDeviceFeatures deviceFeatures{};
 	deviceFeatures.samplerAnisotropy = VK_TRUE;
+	deviceFeatures.fillModeNonSolid = VK_TRUE;
+	deviceFeatures.wideLines = VK_TRUE;
 
 	// CREATE QUEUE
 	VkPhysicalDeviceProperties physicalProperties = {};
@@ -254,61 +270,76 @@ void VulkanEngine::create_device()
 	vkGetDeviceQueue(_device, graphicsFamilyIndex, 0, &_graphicsQueue);
 }
 
-void VulkanEngine::createCommandPool()
+void VulkanEngine::createCommandPools()
 {
+	_commandPools.resize(_swapChainFramebuffers.size());
 	VkCommandPoolCreateInfo cmd_pool_info = {};
 	cmd_pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 	cmd_pool_info.pNext = nullptr;
 	cmd_pool_info.queueFamilyIndex = graphicsFamilyIndex;
 	cmd_pool_info.flags = 0;
-	VkResult result = vkCreateCommandPool(_device, &cmd_pool_info, nullptr, &_pool);
-	assert(result == VK_SUCCESS);
+
+	for(size_t i = 0; i < _commandPools.size(); i++)
+	{
+		VkResult result = vkCreateCommandPool(_device, &cmd_pool_info, nullptr, &_commandPools[i]);
+		assert(result == VK_SUCCESS);
+	}
+
 }
 
 void VulkanEngine::createCommandBuffers()
 {
-	_commandBuffers.resize(_swapChainFramebuffers.size());
-	VkCommandBufferAllocateInfo cmd = {};
-	cmd.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	cmd.pNext = nullptr;
-	cmd.commandPool = _pool;
-	cmd.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	cmd.commandBufferCount = (uint32_t)_commandBuffers.size();
-	VkResult result = vkAllocateCommandBuffers(_device, &cmd, _commandBuffers.data());
-	assert(result == VK_SUCCESS);
+	 _commandBuffers.resize(_swapChainFramebuffers.size());
+	for (size_t i = 0; i < _commandBuffers.size(); i++)
+	{
+	    VkCommandBufferAllocateInfo allocInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO };
+	    allocInfo.commandPool = _commandPools[i];
+	    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	    allocInfo.commandBufferCount = 1; // TODO this is just a guess
 
-	// Do some drawing stuff??
-	for (size_t i = 0; i < _commandBuffers.size(); i++) {
-	    VkCommandBufferBeginInfo beginInfo{};
-	    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	    beginInfo.flags = 0; // Optional
-	    beginInfo.pInheritanceInfo = nullptr; // Optional
-
-	    if (vkBeginCommandBuffer(_commandBuffers[i], &beginInfo) != VK_SUCCESS) {
-	        throw std::runtime_error("failed to begin recording command buffer!");
-	    }
-	    VkRenderPassBeginInfo renderPassInfo{};
-	    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-	    renderPassInfo.renderPass = _renderPass;
-	    renderPassInfo.framebuffer = _swapChainFramebuffers[i];
-	    renderPassInfo.renderArea.offset = {0, 0};
-	    renderPassInfo.renderArea.extent = _swapChainExtent;
-
-	    VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
-	    renderPassInfo.clearValueCount = 1;
-	    renderPassInfo.pClearValues = &clearColor;
-	    vkCmdBeginRenderPass(_commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-	    	vkCmdBindPipeline(_commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline);
-		  		vkCmdBindIndexBuffer(_commandBuffers[i], _indexBuffer, 0, VK_INDEX_TYPE_UINT16);
-	    		vkCmdBindDescriptorSets(_commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, _pipelineLayout, 0, 1, &_descriptorSets[i], 0, nullptr);
-	    			vkCmdDrawIndexed(_commandBuffers[i], static_cast<uint32_t>(_indices.size()), 1, 0, 0, 0);
-	    			//vkCmdDraw(_commandBuffers[i], 3, 1, 0, 0);
-	    vkCmdEndRenderPass(_commandBuffers[i]);
-
-	    if (vkEndCommandBuffer(_commandBuffers[i]) != VK_SUCCESS) {
-	        throw std::runtime_error("failed to record command buffer!");
+	    if (vkAllocateCommandBuffers(_device, &allocInfo, &_commandBuffers[i]) != VK_SUCCESS)
+	    {
+	        throw std::runtime_error("failed to allocate command buffers");
 	    }
 	}
+}
+
+void VulkanEngine::updateCommandBuffer(uint32_t currentImage) 
+{
+	VkResult result = vkResetCommandPool(_device, _commandPools[currentImage], 0);
+	if (result != VK_SUCCESS)
+	{
+	    throw std::runtime_error("failed to reset command pool");
+	}
+
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT; 
+
+    if (vkBeginCommandBuffer(_commandBuffers[currentImage], &beginInfo) != VK_SUCCESS) {
+        throw std::runtime_error("failed to begin recording command buffer!");
+    }
+    VkRenderPassBeginInfo renderPassInfo{};
+    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    renderPassInfo.renderPass = _renderPass;
+    renderPassInfo.framebuffer = _swapChainFramebuffers[currentImage];
+    renderPassInfo.renderArea.offset = {0, 0};
+    renderPassInfo.renderArea.extent = _swapChainExtent;
+
+    VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
+    renderPassInfo.clearValueCount = 1;
+    renderPassInfo.pClearValues = &clearColor;
+    vkCmdBeginRenderPass(_commandBuffers[currentImage], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+    	vkCmdBindPipeline(_commandBuffers[currentImage], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline);
+	  		vkCmdBindIndexBuffer(_commandBuffers[currentImage], _indexBuffers[currentImage], 0, VK_INDEX_TYPE_UINT16);
+    		vkCmdBindDescriptorSets(_commandBuffers[currentImage], VK_PIPELINE_BIND_POINT_GRAPHICS, _pipelineLayout, 0, 1, &_descriptorSets[currentImage], 0, nullptr);
+    			vkCmdDrawIndexed(_commandBuffers[currentImage], static_cast<uint32_t>(_indices.size()), 1, 0, 0, 0);
+    			//vkCmdDraw(_commandBuffers[currentImage], 3, 1, 0, 0);
+    vkCmdEndRenderPass(_commandBuffers[currentImage]);
+
+    if (vkEndCommandBuffer(_commandBuffers[currentImage]) != VK_SUCCESS) {
+        throw std::runtime_error("failed to record command buffer!");
+    }
 }
 
 VkSurfaceFormatKHR VulkanEngine::chooseSwapSurfaceFormat()
@@ -734,7 +765,7 @@ void VulkanEngine::createTextureImage()
 {
 	unsigned char temp_bitmap[512*512];
 	auto ttf_buffer = readFile("resources/fonts/Roboto-Regular.ttf");
-   	auto res = stbtt_BakeFontBitmap(reinterpret_cast<const unsigned char*>(ttf_buffer.data()),0, 16.0, temp_bitmap,512,512, 32,96, cdata); // no guarantee this fits!
+   	auto res = stbtt_BakeFontBitmap(reinterpret_cast<const unsigned char*>(ttf_buffer.data()),0, 32.0, temp_bitmap,512,512, 32,96, cdata); // no guarantee this fits!
    	std::cout << sizeof(temp_bitmap) << std::endl;
 
 	// int texWidth, texHeight, texChannels;
@@ -803,7 +834,7 @@ VkCommandBuffer VulkanEngine::beginSingleTimeCommands()
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandPool = _pool;
+    allocInfo.commandPool = _commandPools[currentFrame];
     allocInfo.commandBufferCount = 1;
 
     VkCommandBuffer commandBuffer;
@@ -830,7 +861,7 @@ void VulkanEngine::endSingleTimeCommands(VkCommandBuffer commandBuffer)
     vkQueueSubmit(_graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
     vkQueueWaitIdle(_graphicsQueue);
 
-    vkFreeCommandBuffers(_device, _pool, 1, &commandBuffer);
+    vkFreeCommandBuffers(_device, _commandPools[currentFrame], 1, &commandBuffer);
 }
 
 void VulkanEngine::copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) 
@@ -913,12 +944,26 @@ void VulkanEngine::transitionImageLayout(VkImage image, VkFormat format, VkImage
 	);
 	endSingleTimeCommands(commandBuffer);
 }
+
 void VulkanEngine::updateBuffers(uint32_t currentImage)
 {
 	void* data;
-	vkMapMemory(_device, _vertexBuffersMemory[currentImage], 0, sizeof(SpriteVertexData), 0, &data);
-	   memcpy(data, _spriteVertices.data(), sizeof(SpriteVertexData)  * _spriteVertices.size());
-	vkUnmapMemory(_device, _vertexBuffersMemory[currentImage]);
+	if(_spriteVertices.size() > 0)
+	{
+		vkMapMemory(_device, _vertexBuffersMemory[currentImage], 0, sizeof(SpriteVertexData), 0, &data);
+		   memcpy(data, _spriteVertices.data(), sizeof(SpriteVertexData)  * _spriteVertices.size());
+		vkUnmapMemory(_device, _vertexBuffersMemory[currentImage]);
+	}
+
+	if(_indices.size() > 0)
+	{
+		vkMapMemory(_device, _indexBuffersMemory[currentImage], 0, sizeof(uint16_t) * _indices.size(), 0, &data);
+	   		memcpy(data, _indices.data(), sizeof(uint16_t) * _indices.size());
+		vkUnmapMemory(_device, _indexBuffersMemory[currentImage]);
+	}
+
+	// _indices.clear();
+	_spriteVertices.clear();
 }
 
 void VulkanEngine::drawFrame()
@@ -943,6 +988,7 @@ void VulkanEngine::drawFrame()
     _imagesInFlight[imageIndex] = _inFlightFences[currentFrame];
 
     updateBuffers(imageIndex);
+    updateCommandBuffer(imageIndex);
 
 	VkSubmitInfo submitInfo{};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -981,6 +1027,7 @@ void VulkanEngine::drawFrame()
 	   std::cout << "failed to acquire swap chain image!" << std::endl;;
 	}
 	currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+	_indices.clear(); 
 }
 
 VkImageView VulkanEngine::createImageView(VkImage image, VkFormat format) 
@@ -1078,20 +1125,23 @@ void VulkanEngine::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkM
 
 	vkBindBufferMemory(_device, buffer, bufferMemory, 0);
 }
+
+// TODO: make these vectors, also create a variable to hold the map
 void VulkanEngine::createIndexBuffer()
 {
-	VkDeviceSize bufferSize = sizeof(uint16_t) * _indices.size();
-	createBuffer(bufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, _indexBuffer, _indexBufferMemory);
+	VkDeviceSize bufferSize = sizeof(uint16_t) * MAX_INDICES;
+	
+	_indexBuffers.resize(_swapChainImages.size());
+	_indexBuffersMemory.resize(_swapChainImages.size());
 
-	void* data;
-	vkMapMemory(_device, _indexBufferMemory, 0, sizeof(uint16_t) * _indices.size(), 0, &data);
-	   memcpy(data, _indices.data(), sizeof(uint16_t) * _indices.size());
-	vkUnmapMemory(_device, _indexBufferMemory);
+	for (size_t i = 0; i < _swapChainImages.size(); i++) {
+		createBuffer(bufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, _indexBuffers[i], _indexBuffersMemory[i]);
+	}
 }
 
 void VulkanEngine::createBuffers()
 {
-	VkDeviceSize bufferSize = sizeof(SpriteVertexData) * _spriteVertices.size();
+	VkDeviceSize bufferSize = sizeof(SpriteVertexData) * MAX_SPRITES;
 
 	_vertexBuffers.resize(_swapChainImages.size());
 	_vertexBuffersMemory.resize(_swapChainImages.size());
@@ -1141,7 +1191,7 @@ void VulkanEngine::createDescriptorSets()
 		VkDescriptorBufferInfo bufferInfo{};
 	    bufferInfo.buffer = _vertexBuffers[i];
 	    bufferInfo.offset = 0;
-	    bufferInfo.range = sizeof(SpriteVertexData) * _spriteVertices.size();
+	    bufferInfo.range = sizeof(SpriteVertexData) * MAX_SPRITES;
 
     	VkDescriptorImageInfo imageInfo{};
        	imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -1186,9 +1236,10 @@ void VulkanEngine::cleanupSwapChain()
 	vkDestroySwapchainKHR(_device, _swapChain, nullptr);
 	
 
-	vkDestroyBuffer(_device, _indexBuffer, nullptr);
-	vkFreeMemory(_device, _indexBufferMemory, nullptr);
+
 	for (size_t i = 0; i < _swapChainImages.size(); i++) {
+		vkDestroyBuffer(_device, _indexBuffers[i], nullptr);
+		vkFreeMemory(_device, _indexBuffersMemory[i], nullptr);
         vkDestroyBuffer(_device, _vertexBuffers[i], nullptr);
         vkFreeMemory(_device, _vertexBuffersMemory[i], nullptr);
     }
@@ -1243,10 +1294,14 @@ void VulkanEngine::shutdown_vulkan()
 	{
 		vkDestroySemaphore(_device, _renderFinishedSemaphores[i], nullptr);
 	   	vkDestroySemaphore(_device, _imageAvailableSemaphores[i], nullptr);
-	   	vkDestroyFence(_device, _inFlightFences[i], nullptr);
+	   	vkDestroyFence(_device, _inFlightFences[i], nullptr);	
 	}
 
-	vkDestroyCommandPool(_device, _pool, nullptr);
+	for(auto commandPool : _commandPools)
+	{
+   		vkDestroyCommandPool(_device, commandPool, nullptr);
+	}
+
 	vkDestroyDevice(_device, nullptr);
 	vkDestroySurfaceKHR(_instance, _surface, nullptr);
 	vkDestroyInstance(_instance, nullptr);
