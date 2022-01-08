@@ -139,6 +139,6 @@ private:
 
 	const int MAX_SPRITES = 2048;
 	const int MAX_INDICES = 2048;
-	const int MAX_TEXTURES = 2048;
+	const int MAX_TEXTURES = 64;
 
 };

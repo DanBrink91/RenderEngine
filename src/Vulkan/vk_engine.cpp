@@ -231,6 +231,20 @@ void VulkanEngine::create_device()
 	deviceFeatures.fillModeNonSolid = VK_TRUE;
 	deviceFeatures.wideLines = VK_TRUE;
 
+	// VkPhysicalDeviceDescriptorIndexingFeaturesEXT indexingFeatures{};
+	// indexingFeatures.sType	= VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES_EXT;
+	// indexingFeatures.pNext = nullptr;
+
+	// VkPhysicalDeviceFeatures2 deviceFeatures2{};
+	// deviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+	// deviceFeatures2.pNext = &indexingFeatures;
+	// vkGetPhysicalDeviceFeatures2(_chosenGPU, &deviceFeatures2);
+
+	// if(indexingFeatures.descriptorBindingPartiallyBound && indexingFeatures.runtimeDescriptorArray)
+	// {
+	// 	std::cout << "indexing features are all good!" << std::endl;
+	// }
+
 	// CREATE QUEUE
 	VkPhysicalDeviceProperties physicalProperties = {};
 	vkGetPhysicalDeviceProperties(_chosenGPU, &physicalProperties);
@@ -564,13 +578,14 @@ void VulkanEngine::createDescriptorSetLayout()
 
 	std::array<VkDescriptorSetLayoutBinding, 2> bindings = {vertexUvLayoutBinding, samplerLayoutBinding};
 
-	VkDescriptorBindingFlagsEXT bindFlag = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT;
+	
+	std::array<VkDescriptorBindingFlagsEXT, 2> bindFlags = {0, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT};
 
 	VkDescriptorSetLayoutBindingFlagsCreateInfoEXT extendedInfo{};
 	extendedInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO_EXT;
 	extendedInfo.pNext = nullptr;
-	extendedInfo.bindingCount = static_cast<uint32_t>(bindings.size());
-	extendedInfo.pBindingFlags = &bindFlag;
+	extendedInfo.bindingCount = static_cast<uint32_t>(bindFlags.size());
+	extendedInfo.pBindingFlags = bindFlags.data();
 
    	VkDescriptorSetLayoutCreateInfo layoutInfo{};
    	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -794,6 +809,17 @@ void VulkanEngine::createFontTexture()
 	vkMapMemory(_device, stagingBufferMemory, 0, imageSize, 0, &data);
 	    memcpy(data, temp_bitmap, static_cast<size_t>(imageSize));
 	vkUnmapMemory(_device, stagingBufferMemory);
+	
+	VkImageFormatProperties imageFormatProperties;
+	VkResult result = vkGetPhysicalDeviceImageFormatProperties(_chosenGPU,
+    	VK_FORMAT_R8_UNORM,
+    	VK_IMAGE_TYPE_2D,
+    	VK_IMAGE_TILING_OPTIMAL,
+    	VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+    	0,
+		&imageFormatProperties);
+	assert(result != VK_ERROR_FORMAT_NOT_SUPPORTED);
+	// std::cout << imageFormatProperties.maxMipLevels << std::endl << imageFormatProperties.maxArrayLayers << std::endl;
 
 	VkImageCreateInfo imageInfo{};
 	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -803,7 +829,7 @@ void VulkanEngine::createFontTexture()
 	imageInfo.extent.depth = 1;
 	imageInfo.mipLevels = 1;
 	imageInfo.arrayLayers = 1;
-	imageInfo.format = VK_FORMAT_R8_SRGB;
+	imageInfo.format = VK_FORMAT_R8_UNORM;
 	imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
 	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
@@ -829,10 +855,10 @@ void VulkanEngine::createFontTexture()
 	}
 
 	vkBindImageMemory(_device, textureImage, textureImageMemory, 0);
-	transitionImageLayout(textureImage, VK_FORMAT_R8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+	transitionImageLayout(textureImage, VK_FORMAT_R8_UNORM, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 	copyBufferToImage(stagingBuffer, textureImage, 512, 512);
 
-	transitionImageLayout(textureImage, VK_FORMAT_R8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	transitionImageLayout(textureImage, VK_FORMAT_R8_UNORM, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
 	vkDestroyBuffer(_device, stagingBuffer, nullptr);
     vkFreeMemory(_device, stagingBufferMemory, nullptr);
@@ -1135,7 +1161,7 @@ VkImageView VulkanEngine::createImageView(VkImage image, VkFormat format)
 void VulkanEngine::createTextureImageViews() 
 {
 	// first texture is a font image that uses a different format
-	_textureImageViews.push_back(createImageView(_textureImages[0], VK_FORMAT_R8_SRGB));
+	_textureImageViews.push_back(createImageView(_textureImages[0], VK_FORMAT_R8_UNORM));
 	for(size_t i = 1; i < _textureImages.size(); i++)
 	{
 		_textureImageViews.push_back(createImageView(_textureImages[i], VK_FORMAT_R8G8B8A8_SRGB));
@@ -1244,7 +1270,7 @@ void VulkanEngine::createDescriptorPool()
 	poolSizes[0].descriptorCount = static_cast<uint32_t>(_swapChainImages.size());
 	
 	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	poolSizes[1].descriptorCount = static_cast<uint32_t>(MAX_TEXTURES);
+	poolSizes[1].descriptorCount = static_cast<uint32_t>(MAX_TEXTURES * _swapChainImages.size());
 
 
 
@@ -1270,7 +1296,9 @@ void VulkanEngine::createDescriptorSets()
 	allocInfo.pSetLayouts = layouts.data();
 
 	_descriptorSets.resize(_swapChainImages.size());
-	if (vkAllocateDescriptorSets(_device, &allocInfo, _descriptorSets.data()) != VK_SUCCESS) {
+	VkResult result = vkAllocateDescriptorSets(_device, &allocInfo, _descriptorSets.data());
+	if (result != VK_SUCCESS) {
+	    std::cout << result << std::endl;
 	    throw std::runtime_error("failed to allocate descriptor sets!");
 	}
 	for (size_t i = 0; i < _swapChainImages.size(); i++) 
