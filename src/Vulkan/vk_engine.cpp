@@ -94,8 +94,9 @@ void VulkanEngine::init_vulkan()
 	createGraphicsPipeline();
 	createFramebuffers();
 	createCommandPools();
+	createFontTexture();
 	createTextureImage();
-	createTextureImageView();
+	createTextureImageViews();
 	createTextureSampler();
 	createDescriptorPool();
 	createDescriptorSets();
@@ -250,6 +251,8 @@ void VulkanEngine::create_device()
 	pdIndexing.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
 	pdIndexing.runtimeDescriptorArray = VK_TRUE;
 	pdIndexing.descriptorBindingVariableDescriptorCount = VK_TRUE;
+	pdIndexing.descriptorBindingPartiallyBound = VK_TRUE;
+
 
 	// CREATE LOGICAL DEVICE
 	VkDeviceCreateInfo device_info = {};
@@ -552,16 +555,26 @@ void VulkanEngine::createDescriptorSetLayout()
 
 	VkDescriptorSetLayoutBinding samplerLayoutBinding{};
 	samplerLayoutBinding.binding = 1;
-	samplerLayoutBinding.descriptorCount = 1;
+	samplerLayoutBinding.descriptorCount = (uint32_t)MAX_TEXTURES;
 	samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	samplerLayoutBinding.pImmutableSamplers = nullptr;
 	samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;    
 
+
+
 	std::array<VkDescriptorSetLayoutBinding, 2> bindings = {vertexUvLayoutBinding, samplerLayoutBinding};
 
+	VkDescriptorBindingFlagsEXT bindFlag = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT;
+
+	VkDescriptorSetLayoutBindingFlagsCreateInfoEXT extendedInfo{};
+	extendedInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO_EXT;
+	extendedInfo.pNext = nullptr;
+	extendedInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+	extendedInfo.pBindingFlags = &bindFlag;
 
    	VkDescriptorSetLayoutCreateInfo layoutInfo{};
    	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+   	layoutInfo.pNext = &extendedInfo;
    	layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
    	layoutInfo.pBindings = bindings.data();
 
@@ -755,26 +768,24 @@ void VulkanEngine::createSyncObjects()
 
 void VulkanEngine::createFontTexture() 
 {
+	VkImage textureImage;
+	VkDeviceMemory textureImageMemory;
+
 	unsigned char temp_bitmap[512*512];
 	auto ttf_buffer = readFile("resources/fonts/Roboto-Regular.ttf");
-   	stbtt_BakeFontBitmap(reinterpret_cast<const unsigned char*>(ttf_buffer.data()),0, 16.0, temp_bitmap,512,512, 32,96, cdata); // no guarantee this fits!
-   	//glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, 512,512, 0, GL_ALPHA, GL_UNSIGNED_BYTE, temp_bitmap);
-}
+   	
+   	stbtt_BakeFontBitmap(reinterpret_cast<const unsigned char*>(
+   		ttf_buffer.data()),
+	   	0, // offset, use 0 for plain ttf
+	   	16.0, // pixel height of font
+	   	temp_bitmap, // bitmap to be filled in
+	   	512,512, // Width, Height of bitmap
+	   	32, // first character to bake
+	   	96, // number of characters to bake
+	   	cdata // character data array, number of characters long
+	);
 
-void VulkanEngine::createTextureImage()
-{
-	unsigned char temp_bitmap[512*512];
-	auto ttf_buffer = readFile("resources/fonts/Roboto-Regular.ttf");
-   	auto res = stbtt_BakeFontBitmap(reinterpret_cast<const unsigned char*>(ttf_buffer.data()),0, 32.0, temp_bitmap,512,512, 32,96, cdata); // no guarantee this fits!
-   	std::cout << sizeof(temp_bitmap) << std::endl;
-
-	// int texWidth, texHeight, texChannels;
- //    stbi_uc* pixels = stbi_load("resources/sprites/diceRed.png", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-    VkDeviceSize imageSize = 512 * 512; //texWidth * texHeight * 4;
-
-    // if (!pixels) 
-    //     throw std::runtime_error("failed to load texture image!");
-    
+    VkDeviceSize imageSize = 512 * 512;
     VkBuffer stagingBuffer;
     VkDeviceMemory stagingBufferMemory;
 
@@ -783,13 +794,12 @@ void VulkanEngine::createTextureImage()
 	vkMapMemory(_device, stagingBufferMemory, 0, imageSize, 0, &data);
 	    memcpy(data, temp_bitmap, static_cast<size_t>(imageSize));
 	vkUnmapMemory(_device, stagingBufferMemory);
-	// stbi_image_free(pixels);
 
 	VkImageCreateInfo imageInfo{};
 	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 	imageInfo.imageType = VK_IMAGE_TYPE_2D;
-	imageInfo.extent.width = 512;//static_cast<uint32_t>(texWidth);
-	imageInfo.extent.height = 512;//static_cast<uint32_t>(texHeight);
+	imageInfo.extent.width = 512;
+	imageInfo.extent.height = 512;
 	imageInfo.extent.depth = 1;
 	imageInfo.mipLevels = 1;
 	imageInfo.arrayLayers = 1;
@@ -801,32 +811,103 @@ void VulkanEngine::createTextureImage()
 	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
 	imageInfo.flags = 0; // Optional
 
-	if (vkCreateImage(_device, &imageInfo, nullptr, &_textureImage) != VK_SUCCESS) {
+	if (vkCreateImage(_device, &imageInfo, nullptr, &textureImage) != VK_SUCCESS) {
     	throw std::runtime_error("failed to create image!");
 	}
 
 	VkMemoryRequirements memRequirements;
-	vkGetImageMemoryRequirements(_device, _textureImage, &memRequirements);
+	vkGetImageMemoryRequirements(_device, textureImage, &memRequirements);
 
 	VkMemoryAllocateInfo allocInfo{};
 	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 	allocInfo.allocationSize = memRequirements.size;
 	allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-	if (vkAllocateMemory(_device, &allocInfo, nullptr, &_textureImageMemory) != VK_SUCCESS) 
+	if (vkAllocateMemory(_device, &allocInfo, nullptr, &textureImageMemory) != VK_SUCCESS) 
 	{
 	    throw std::runtime_error("failed to allocate image memory!");
 	}
 
-	vkBindImageMemory(_device, _textureImage, _textureImageMemory, 0);
-	transitionImageLayout(_textureImage, VK_FORMAT_R8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-	copyBufferToImage(stagingBuffer, _textureImage, 512, 512);
+	vkBindImageMemory(_device, textureImage, textureImageMemory, 0);
+	transitionImageLayout(textureImage, VK_FORMAT_R8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+	copyBufferToImage(stagingBuffer, textureImage, 512, 512);
 
-	//copyBufferToImage(stagingBuffer, _textureImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
-	transitionImageLayout(_textureImage, VK_FORMAT_R8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	transitionImageLayout(textureImage, VK_FORMAT_R8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
 	vkDestroyBuffer(_device, stagingBuffer, nullptr);
     vkFreeMemory(_device, stagingBufferMemory, nullptr);
+
+    _textureImages.push_back(textureImage);
+    _textureImagesMemory.push_back(textureImageMemory);
+}
+
+void VulkanEngine::createTextureImage()
+{
+	
+	VkImage textureImage;
+	VkDeviceMemory textureImageMemory;
+
+	int texWidth, texHeight, texChannels;
+    stbi_uc* pixels = stbi_load("resources/sprites/diceRed.png", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+    VkDeviceSize imageSize = texWidth * texHeight * 4;
+
+    if (!pixels) 
+        throw std::runtime_error("failed to load texture image!");
+    
+    VkBuffer stagingBuffer;
+    VkDeviceMemory stagingBufferMemory;
+
+    createBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+    void* data;
+	vkMapMemory(_device, stagingBufferMemory, 0, imageSize, 0, &data);
+	    memcpy(data, pixels, static_cast<size_t>(imageSize));
+	vkUnmapMemory(_device, stagingBufferMemory);
+	stbi_image_free(pixels);
+
+	VkImageCreateInfo imageInfo{};
+	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	imageInfo.imageType = VK_IMAGE_TYPE_2D;
+	imageInfo.extent.width = static_cast<uint32_t>(texWidth);
+	imageInfo.extent.height = static_cast<uint32_t>(texHeight);
+	imageInfo.extent.depth = 1;
+	imageInfo.mipLevels = 1;
+	imageInfo.arrayLayers = 1;
+	imageInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+	imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+	imageInfo.flags = 0; // Optional
+
+	if (vkCreateImage(_device, &imageInfo, nullptr, &textureImage) != VK_SUCCESS) {
+    	throw std::runtime_error("failed to create image!");
+	}
+
+	VkMemoryRequirements memRequirements;
+	vkGetImageMemoryRequirements(_device, textureImage, &memRequirements);
+
+	VkMemoryAllocateInfo allocInfo{};
+	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	allocInfo.allocationSize = memRequirements.size;
+	allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+	if (vkAllocateMemory(_device, &allocInfo, nullptr, &textureImageMemory) != VK_SUCCESS) 
+	{
+	    throw std::runtime_error("failed to allocate image memory!");
+	}
+
+	vkBindImageMemory(_device, textureImage, textureImageMemory, 0);
+	transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+	copyBufferToImage(stagingBuffer, textureImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
+	transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+	vkDestroyBuffer(_device, stagingBuffer, nullptr);
+    vkFreeMemory(_device, stagingBufferMemory, nullptr);
+
+    _textureImages.push_back(textureImage);
+    _textureImagesMemory.push_back(textureImageMemory);
 }
 
 VkCommandBuffer VulkanEngine::beginSingleTimeCommands() 
@@ -1051,9 +1132,14 @@ VkImageView VulkanEngine::createImageView(VkImage image, VkFormat format)
 	return imageView;
 }
 
-void VulkanEngine::createTextureImageView() 
+void VulkanEngine::createTextureImageViews() 
 {
-	_textureImageView = createImageView(_textureImage, VK_FORMAT_R8_SRGB);
+	// first texture is a font image that uses a different format
+	_textureImageViews.push_back(createImageView(_textureImages[0], VK_FORMAT_R8_SRGB));
+	for(size_t i = 1; i < _textureImages.size(); i++)
+	{
+		_textureImageViews.push_back(createImageView(_textureImages[i], VK_FORMAT_R8G8B8A8_SRGB));
+	}
 }
 
 void VulkanEngine::createTextureSampler() 
@@ -1156,8 +1242,9 @@ void VulkanEngine::createDescriptorPool()
 	std::array<VkDescriptorPoolSize, 2> poolSizes{};
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	poolSizes[0].descriptorCount = static_cast<uint32_t>(_swapChainImages.size());
+	
 	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	poolSizes[1].descriptorCount = static_cast<uint32_t>(_swapChainImages.size());
+	poolSizes[1].descriptorCount = static_cast<uint32_t>(MAX_TEXTURES);
 
 
 
@@ -1193,11 +1280,6 @@ void VulkanEngine::createDescriptorSets()
 	    bufferInfo.offset = 0;
 	    bufferInfo.range = sizeof(SpriteVertexData) * MAX_SPRITES;
 
-    	VkDescriptorImageInfo imageInfo{};
-       	imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-      	imageInfo.imageView = _textureImageView;
-      	imageInfo.sampler = _textureSampler;
-
 	    std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
 
         descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1208,13 +1290,24 @@ void VulkanEngine::createDescriptorSets()
         descriptorWrites[0].descriptorCount = 1;
         descriptorWrites[0].pBufferInfo = &bufferInfo;
 
+
+        std::cout << "Descriptor Count: " << _textureImageViews.size() << std::endl; 
+        std::vector<VkDescriptorImageInfo> imageInfo;
+        imageInfo.resize(_textureImageViews.size());
+        for (uint32_t img = 0; img < _textureImageViews.size(); img++)
+        {
+            imageInfo[img].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            imageInfo[img].imageView = _textureImageViews[img];
+            imageInfo[img].sampler = _textureSampler;
+        }
+
         descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         descriptorWrites[1].dstSet = _descriptorSets[i];
         descriptorWrites[1].dstBinding = 1;
         descriptorWrites[1].dstArrayElement = 0;
         descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        descriptorWrites[1].descriptorCount = 1;
-        descriptorWrites[1].pImageInfo = &imageInfo;
+        descriptorWrites[1].descriptorCount = (uint32_t)imageInfo.size();
+        descriptorWrites[1].pImageInfo = imageInfo.data();
 
         vkUpdateDescriptorSets(_device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
 	}
@@ -1284,10 +1377,20 @@ void VulkanEngine::shutdown_vulkan()
 	cleanupSwapChain();
 
 	vkDestroySampler(_device, _textureSampler, nullptr);
-	vkDestroyImageView(_device, _textureImageView, nullptr);
+	
+	for(auto textureImageView : _textureImageViews)
+	{
+		vkDestroyImageView(_device, textureImageView, nullptr);
+	}
 
-	vkDestroyImage(_device, _textureImage, nullptr);
-	vkFreeMemory(_device, _textureImageMemory, nullptr);
+	for(auto textureImage : _textureImages)
+	{
+		vkDestroyImage(_device, textureImage, nullptr);
+	}
+	for(auto textureImageMemory : _textureImagesMemory)
+	{
+		vkFreeMemory(_device, textureImageMemory, nullptr);
+	}
 
 	vkDestroyDescriptorSetLayout(_device, _descriptorSetLayout, nullptr);
 	for(size_t i = 0; i  < MAX_FRAMES_IN_FLIGHT; i++)

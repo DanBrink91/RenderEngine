@@ -84,7 +84,7 @@ private:
 	void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
 	void createFontTexture();
 	void createTextureImage();
-	void createTextureImageView();
+	void createTextureImageViews();
 	void createTextureSampler();
 	VkImageView createImageView(VkImage image, VkFormat format);
 	uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
@@ -121,9 +121,10 @@ private:
 	std::vector<VkBuffer> _vertexBuffers;
 	std::vector<VkDeviceMemory> _vertexBuffersMemory;
 
-	VkImage _textureImage;
-	VkDeviceMemory _textureImageMemory;
-	VkImageView _textureImageView;
+	std::vector<VkImage> _textureImages;
+	std::vector<VkDeviceMemory> _textureImagesMemory;
+	std::vector<VkImageView> _textureImageViews;
+	
 	VkSampler _textureSampler;
 
 	const std::vector<const char*> deviceExtensions = {
@@ -136,8 +137,8 @@ private:
 	std::vector<uint16_t> _indices;
 	stbtt_bakedchar cdata[96]; // ASCII 32..126 is 95 glyphs
 
-	const int MAX_SPRITES = 1024;
-	const int MAX_INDICES = 1024;
-	const int MAX_TEXTURES = 1024;
+	const int MAX_SPRITES = 2048;
+	const int MAX_INDICES = 2048;
+	const int MAX_TEXTURES = 2048;
 
 };
