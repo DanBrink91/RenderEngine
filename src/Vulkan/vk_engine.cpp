@@ -249,6 +249,39 @@ void VulkanEngine::create_device()
 	VkPhysicalDeviceProperties physicalProperties = {};
 	vkGetPhysicalDeviceProperties(_chosenGPU, &physicalProperties);
 
+	std::cout << "ubo: " << physicalProperties.limits.maxUniformBufferRange << " ssbo: " << physicalProperties.limits.maxStorageBufferRange << std::endl;
+
+	VkPhysicalDeviceMemoryProperties memProperties;
+	vkGetPhysicalDeviceMemoryProperties(_chosenGPU, &memProperties);
+
+	for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) 
+	{
+		std::cout << "Memory " << i << " Heap " << memProperties.memoryTypes[i].heapIndex << " :";
+		if(memProperties.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
+		{
+			std::cout << "Device Local, ";
+		}
+		
+		if(memProperties.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
+		{
+			std::cout << "Host Visible, ";
+		}
+		
+		if(memProperties.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
+		{
+			std::cout << "Host Coherent, ";
+		}
+		if(memProperties.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_HOST_CACHED_BIT)
+		{
+			std::cout << "Host Cached ";
+		}
+		std::cout << std::endl;
+	}
+
+	for (uint32_t i = 0; i < memProperties.memoryHeapCount; i++) 
+	{
+		std::cout << "Heap " << i << ": " << memProperties.memoryHeaps[i].size << std::endl;
+	}
 	float priorities[] = { 1.0f };
 	VkDeviceQueueCreateInfo queueCreateInfo = {};
 	queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
@@ -586,7 +619,7 @@ void VulkanEngine::createDescriptorSetLayout()
 	extendedInfo.pNext = nullptr;
 	extendedInfo.bindingCount = static_cast<uint32_t>(bindFlags.size());
 	extendedInfo.pBindingFlags = bindFlags.data();
-
+ 
    	VkDescriptorSetLayoutCreateInfo layoutInfo{};
    	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
    	layoutInfo.pNext = &extendedInfo;
@@ -1318,8 +1351,6 @@ void VulkanEngine::createDescriptorSets()
         descriptorWrites[0].descriptorCount = 1;
         descriptorWrites[0].pBufferInfo = &bufferInfo;
 
-
-        std::cout << "Descriptor Count: " << _textureImageViews.size() << std::endl; 
         std::vector<VkDescriptorImageInfo> imageInfo;
         imageInfo.resize(_textureImageViews.size());
         for (uint32_t img = 0; img < _textureImageViews.size(); img++)

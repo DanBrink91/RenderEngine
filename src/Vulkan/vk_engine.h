@@ -28,6 +28,7 @@ struct SpriteVertexData
 struct SpriteDrawData
 {
 	uint32_t textureIndex;
+	glm::vec3 glowColor;
 };
 
 // TODO: builder design for some of these init structs?
