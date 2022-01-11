@@ -7,8 +7,18 @@ struct SpriteVertex {
     vec2 uv;
 };
 
+struct SpriteDrawData
+{
+   int textureIndex;
+   vec3 glowColor;
+};
+
 layout(set = 0, binding = 0) readonly buffer SpriteVertices {
     SpriteVertex spriteVertex[];
+};
+
+layout(set = 0, binding = 1) readonly buffer SpritesDrawData {
+    SpriteDrawData spriteDrawData[];
 };
 
 layout(location = 0) out vec2 UV;
@@ -16,7 +26,9 @@ layout(location = 1) out int textureIndex;
 
 void main() {
     SpriteVertex sprite = spriteVertex[gl_VertexIndex];
+    SpriteDrawData dd = spriteDrawData[gl_VertexIndex / 4];
+    
     gl_Position = vec4(sprite.position, 0.0, 1.0);
     UV = sprite.uv;
-    textureIndex = gl_VertexIndex;
+    textureIndex = dd.textureIndex;
 }

@@ -126,6 +126,8 @@ void VulkanEngine::drawSprite(int x, int y, int width, int height)
 	_indices.push_back((uint16_t)indexStart + 3);
 	_indices.push_back((uint16_t)indexStart);
 	_indices.push_back((uint16_t)indexStart + 2);
+
+	_spriteDrawData.push_back({1, {0, .3, 1}});
 }
 
 void VulkanEngine::drawText(float x, float y, char* text) 
@@ -155,6 +157,9 @@ void VulkanEngine::drawText(float x, float y, char* text)
 	     _indices.push_back((uint16_t)indexStart + 3);
 	     _indices.push_back((uint16_t)indexStart);
 	     _indices.push_back((uint16_t)indexStart + 2);
+		 
+		 _spriteDrawData.push_back({0,  {1, 0.5, 0.2}});
+
 	  }
 	  ++text;
 	}
@@ -250,6 +255,8 @@ void VulkanEngine::create_device()
 	vkGetPhysicalDeviceProperties(_chosenGPU, &physicalProperties);
 
 	std::cout << "ubo: " << physicalProperties.limits.maxUniformBufferRange << " ssbo: " << physicalProperties.limits.maxStorageBufferRange << std::endl;
+	std::cout << "Max push constants size: " << physicalProperties.limits.maxPushConstantsSize << std::endl;
+	std::cout << "Max descriptor samplers per stage: " << physicalProperties.limits.maxPerStageDescriptorSamplers << std::endl;
 
 	VkPhysicalDeviceMemoryProperties memProperties;
 	vkGetPhysicalDeviceMemoryProperties(_chosenGPU, &memProperties);
@@ -282,6 +289,22 @@ void VulkanEngine::create_device()
 	{
 		std::cout << "Heap " << i << ": " << memProperties.memoryHeaps[i].size << std::endl;
 	}
+
+	// Check for extensions we need?
+	uint32_t extensionCount;
+	std::vector<VkExtensionProperties> extensions;
+	vkEnumerateDeviceExtensionProperties(_chosenGPU, nullptr, &extensionCount, nullptr);
+	extensions.resize(extensionCount);
+	vkEnumerateDeviceExtensionProperties(_chosenGPU, nullptr, &extensionCount, extensions.data());
+	for (auto& ext : extensions)
+	{
+		if (!strcmp(ext.extensionName, VK_EXT_DEBUG_UTILS_EXTENSION_NAME))
+		{
+			std::cout << "Found debug extension!" << std::endl;
+			// extensionPresent = true;
+		}
+	}
+
 	float priorities[] = { 1.0f };
 	VkDeviceQueueCreateInfo queueCreateInfo = {};
 	queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
@@ -596,12 +619,18 @@ void VulkanEngine::createDescriptorSetLayout()
    	vertexUvLayoutBinding.binding = 0;
    	vertexUvLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
    	vertexUvLayoutBinding.descriptorCount = 1;
-   	vertexUvLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     vertexUvLayoutBinding.pImmutableSamplers = nullptr;
     vertexUvLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
+	VkDescriptorSetLayoutBinding drawLayoutBinding{};
+   	drawLayoutBinding.binding = 1;
+   	drawLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+   	drawLayoutBinding.descriptorCount = 1;
+    drawLayoutBinding.pImmutableSamplers = nullptr;
+    drawLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
 	VkDescriptorSetLayoutBinding samplerLayoutBinding{};
-	samplerLayoutBinding.binding = 1;
+	samplerLayoutBinding.binding = 2;
 	samplerLayoutBinding.descriptorCount = (uint32_t)MAX_TEXTURES;
 	samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	samplerLayoutBinding.pImmutableSamplers = nullptr;
@@ -609,10 +638,10 @@ void VulkanEngine::createDescriptorSetLayout()
 
 
 
-	std::array<VkDescriptorSetLayoutBinding, 2> bindings = {vertexUvLayoutBinding, samplerLayoutBinding};
+	std::array<VkDescriptorSetLayoutBinding, 3> bindings = {vertexUvLayoutBinding, drawLayoutBinding, samplerLayoutBinding};
 
 	
-	std::array<VkDescriptorBindingFlagsEXT, 2> bindFlags = {0, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT};
+	std::array<VkDescriptorBindingFlagsEXT, 3> bindFlags = {0, 0, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT};
 
 	VkDescriptorSetLayoutBindingFlagsCreateInfoEXT extendedInfo{};
 	extendedInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO_EXT;
@@ -1090,7 +1119,7 @@ void VulkanEngine::updateBuffers(uint32_t currentImage)
 	void* data;
 	if(_spriteVertices.size() > 0)
 	{
-		vkMapMemory(_device, _vertexBuffersMemory[currentImage], 0, sizeof(SpriteVertexData), 0, &data);
+		vkMapMemory(_device, _vertexBuffersMemory[currentImage], 0, sizeof(SpriteVertexData) * _spriteVertices.size(), 0, &data);
 		   memcpy(data, _spriteVertices.data(), sizeof(SpriteVertexData)  * _spriteVertices.size());
 		vkUnmapMemory(_device, _vertexBuffersMemory[currentImage]);
 	}
@@ -1102,8 +1131,16 @@ void VulkanEngine::updateBuffers(uint32_t currentImage)
 		vkUnmapMemory(_device, _indexBuffersMemory[currentImage]);
 	}
 
+	if(_spriteDrawData.size() > 0)
+	{
+		vkMapMemory(_device, _drawDataBuffersMemory[currentImage], 0, sizeof(SpriteDrawData) * _spriteDrawData.size(), 0, &data);
+		   memcpy(data, _spriteDrawData.data(), sizeof(SpriteDrawData) * _spriteDrawData.size());
+		vkUnmapMemory(_device, _drawDataBuffersMemory[currentImage]);
+	}
+
 	// _indices.clear();
 	_spriteVertices.clear();
+	_spriteDrawData.clear();
 }
 
 void VulkanEngine::drawFrame()
@@ -1230,6 +1267,7 @@ void VulkanEngine::createTextureSampler()
 	}
 }
 
+// TODO: right now we pick the first one matching our requirements, we could try to pick more optimal in the future
 uint32_t VulkanEngine::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) 
 {
 	VkPhysicalDeviceMemoryProperties memProperties;
@@ -1287,23 +1325,33 @@ void VulkanEngine::createIndexBuffer()
 void VulkanEngine::createBuffers()
 {
 	VkDeviceSize bufferSize = sizeof(SpriteVertexData) * MAX_SPRITES;
+	VkDeviceSize drawBufferSize = sizeof(SpriteDrawData) * MAX_SPRITES;
 
 	_vertexBuffers.resize(_swapChainImages.size());
 	_vertexBuffersMemory.resize(_swapChainImages.size());
 
+	_drawDataBuffers.resize(_swapChainImages.size());
+	_drawDataBuffersMemory.resize(_swapChainImages.size());
+
 	for (size_t i = 0; i < _swapChainImages.size(); i++) {
 	   createBuffer(bufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, _vertexBuffers[i], _vertexBuffersMemory[i]);
+
+	   createBuffer(drawBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, _drawDataBuffers[i], _drawDataBuffersMemory[i]);
 	}
 }
 
 void VulkanEngine::createDescriptorPool()
 {
-	std::array<VkDescriptorPoolSize, 2> poolSizes{};
+	std::array<VkDescriptorPoolSize, 3> poolSizes{};
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	poolSizes[0].descriptorCount = static_cast<uint32_t>(_swapChainImages.size());
+
+	poolSizes[1].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	poolSizes[1].descriptorCount = static_cast<uint32_t>(_swapChainImages.size());
+
 	
-	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	poolSizes[1].descriptorCount = static_cast<uint32_t>(MAX_TEXTURES * _swapChainImages.size());
+	poolSizes[2].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	poolSizes[2].descriptorCount = static_cast<uint32_t>(MAX_TEXTURES * _swapChainImages.size());
 
 
 
@@ -1341,7 +1389,12 @@ void VulkanEngine::createDescriptorSets()
 	    bufferInfo.offset = 0;
 	    bufferInfo.range = sizeof(SpriteVertexData) * MAX_SPRITES;
 
-	    std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
+    	VkDescriptorBufferInfo drawBufferInfo{};
+        drawBufferInfo.buffer = _drawDataBuffers[i];
+        drawBufferInfo.offset = 0;
+        drawBufferInfo.range = sizeof(SpriteDrawData) * MAX_SPRITES;
+
+	    std::array<VkWriteDescriptorSet, 3> descriptorWrites{};
 
         descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         descriptorWrites[0].dstSet = _descriptorSets[i];
@@ -1350,6 +1403,14 @@ void VulkanEngine::createDescriptorSets()
         descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         descriptorWrites[0].descriptorCount = 1;
         descriptorWrites[0].pBufferInfo = &bufferInfo;
+
+        descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[1].dstSet = _descriptorSets[i];
+        descriptorWrites[1].dstBinding = 1;
+        descriptorWrites[1].dstArrayElement = 0;
+        descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        descriptorWrites[1].descriptorCount = 1;
+        descriptorWrites[1].pBufferInfo = &drawBufferInfo;
 
         std::vector<VkDescriptorImageInfo> imageInfo;
         imageInfo.resize(_textureImageViews.size());
@@ -1360,13 +1421,13 @@ void VulkanEngine::createDescriptorSets()
             imageInfo[img].sampler = _textureSampler;
         }
 
-        descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[1].dstSet = _descriptorSets[i];
-        descriptorWrites[1].dstBinding = 1;
-        descriptorWrites[1].dstArrayElement = 0;
-        descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        descriptorWrites[1].descriptorCount = (uint32_t)imageInfo.size();
-        descriptorWrites[1].pImageInfo = imageInfo.data();
+        descriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[2].dstSet = _descriptorSets[i];
+        descriptorWrites[2].dstBinding = 2;
+        descriptorWrites[2].dstArrayElement = 0;
+        descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        descriptorWrites[2].descriptorCount = (uint32_t)imageInfo.size();
+        descriptorWrites[2].pImageInfo = imageInfo.data();
 
         vkUpdateDescriptorSets(_device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
 	}
@@ -1392,10 +1453,14 @@ void VulkanEngine::cleanupSwapChain()
 	for (size_t i = 0; i < _swapChainImages.size(); i++) {
 		vkDestroyBuffer(_device, _indexBuffers[i], nullptr);
 		vkFreeMemory(_device, _indexBuffersMemory[i], nullptr);
+        
         vkDestroyBuffer(_device, _vertexBuffers[i], nullptr);
         vkFreeMemory(_device, _vertexBuffersMemory[i], nullptr);
-    }
 
+        vkDestroyBuffer(_device, _drawDataBuffers[i], nullptr);
+        vkFreeMemory(_device, _drawDataBuffersMemory[i], nullptr);
+    }
+    vkDestroyDescriptorSetLayout(_device, _descriptorSetLayout, nullptr);
     vkDestroyDescriptorPool(_device, _descriptorPool, nullptr);
 }
 
@@ -1413,6 +1478,8 @@ void VulkanEngine::recreateSwapChain()
 		glfwWaitEvents();
 	} while(width == 0 && height == 0);
 
+	_windowWidth = width;
+	_windowHeight = height;
 	vkDeviceWaitIdle(_device);
 
 	cleanupSwapChain();
@@ -1424,6 +1491,7 @@ void VulkanEngine::recreateSwapChain()
 	createGraphicsPipeline();
 	createFramebuffers();
 	createBuffers();
+	createIndexBuffer();
 	createDescriptorPool();
 	createDescriptorSets();
 	createCommandBuffers();
@@ -1451,7 +1519,6 @@ void VulkanEngine::shutdown_vulkan()
 		vkFreeMemory(_device, textureImageMemory, nullptr);
 	}
 
-	vkDestroyDescriptorSetLayout(_device, _descriptorSetLayout, nullptr);
 	for(size_t i = 0; i  < MAX_FRAMES_IN_FLIGHT; i++)
 	{
 		vkDestroySemaphore(_device, _renderFinishedSemaphores[i], nullptr);

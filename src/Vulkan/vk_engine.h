@@ -57,7 +57,7 @@ public:
 	VkPipeline _graphicsPipeline;
 	bool framebufferResized = false;
 
-	const int _windowWidth = 800, _windowHeight = 600;
+	int _windowWidth = 800, _windowHeight = 600;
 
 private:
 	void cleanupSwapChain();
@@ -122,6 +122,9 @@ private:
 	std::vector<VkBuffer> _vertexBuffers;
 	std::vector<VkDeviceMemory> _vertexBuffersMemory;
 
+	std::vector<VkBuffer> _drawDataBuffers;
+	std::vector<VkDeviceMemory> _drawDataBuffersMemory;
+
 	std::vector<VkImage> _textureImages;
 	std::vector<VkDeviceMemory> _textureImagesMemory;
 	std::vector<VkImageView> _textureImageViews;
@@ -131,9 +134,11 @@ private:
 	const std::vector<const char*> deviceExtensions = {
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
         VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME
+        // VK_EXT_DEBUG_UTILS_EXTENSION_NAME
 	};
 
 	std::vector<SpriteVertexData> _spriteVertices;
+	std::vector<SpriteDrawData> _spriteDrawData;
 
 	std::vector<uint16_t> _indices;
 	stbtt_bakedchar cdata[96]; // ASCII 32..126 is 95 glyphs
