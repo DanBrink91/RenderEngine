@@ -1146,7 +1146,6 @@ void VulkanEngine::updateBuffers(uint32_t currentImage)
 void VulkanEngine::drawFrame()
 {
 	vkWaitForFences(_device, 1, &_inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
-
 	uint32_t imageIndex;
 	VkResult result = vkAcquireNextImageKHR(_device, _swapChain, UINT64_MAX, _imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
 
@@ -1495,6 +1494,22 @@ void VulkanEngine::recreateSwapChain()
 	createDescriptorSets();
 	createCommandBuffers();
 }
+
+void VulkanEngine::recreateGraphicsPipeline()
+{
+    vkDeviceWaitIdle(_device); // don't touch resources that may still be in use
+    
+    for (size_t i = 0; i < _commandBuffers.size(); i++)
+    {
+        vkFreeCommandBuffers(_device, _commandPools[i], 1, &_commandBuffers[i]);
+    }        
+    vkDestroyPipeline(_device, _graphicsPipeline, nullptr);
+    vkDestroyPipelineLayout(_device, _pipelineLayout, nullptr);
+
+    createGraphicsPipeline();
+    createCommandBuffers();
+}
+
 
 void VulkanEngine::shutdown_vulkan()
 {

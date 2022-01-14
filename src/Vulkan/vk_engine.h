@@ -39,6 +39,9 @@ public:
 	void drawFrame();
 	void drawSprite(int x, int y, int width, int height);
 	void drawText(float x, float y, char* text);
+	void recreateGraphicsPipeline();
+	void recreateSwapChain();
+
 
 	GLFWwindow* _window;
 	VkInstance _instance;
@@ -61,7 +64,6 @@ public:
 
 private:
 	void cleanupSwapChain();
-	void recreateSwapChain();
 	void find_physical_device();
 	void create_device();
 	void createCommandPools();
