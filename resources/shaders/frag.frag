@@ -8,8 +8,12 @@ layout(location = 0) in vec2 UV;
 layout(location = 1) flat in int textureIndex;
 
 
+
 layout(location = 0) out vec4 outColor;
 
+
 void main() {
-    outColor = texture(textSampler[textureIndex], UV);
+    vec4 texColor = texture(textSampler[textureIndex], UV);
+
+    outColor = texColor;
 }

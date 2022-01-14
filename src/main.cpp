@@ -49,6 +49,7 @@ int main()
 		// keep running
 		glfwPollEvents();
 		
+		
 		ve.drawSprite(50, 50, 64*3, 64*2);
 		// std::snprintf()
 		ve.drawText(300, 300, (char*)"Hello World!");

@@ -1267,7 +1267,7 @@ void VulkanEngine::createTextureSampler()
 	}
 }
 
-// TODO: right now we pick the first one matching our requirements, we could try to pick more optimal in the future
+// We look for a host cached memory if we can
 uint32_t VulkanEngine::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) 
 {
 	VkPhysicalDeviceMemoryProperties memProperties;
@@ -1275,10 +1275,9 @@ uint32_t VulkanEngine::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags
 
 	for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
 	    if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
-	        return i;
+        	return i;
 	    }
 	}
-
 	throw std::runtime_error("failed to find suitable memory type!");
 }
 
