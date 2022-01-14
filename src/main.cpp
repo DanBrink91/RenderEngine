@@ -3,7 +3,8 @@
 #include <thread>
 #include <stdio.h>
 
-#include <filesystem>
+#include <windows.h >
+// #include <filesystem>
 #include <unordered_map>
 
 #include "rapidjson/document.h"
@@ -17,25 +18,8 @@
 
 using dmilliseconds = std::chrono::duration<double, std::milli>;
 const std::string SHADER_PATH = "resources/shaders/";
-std::unordered_map<std::string, std::filesystem::file_time_type> shaderPaths;
 
-void shaderFileChanged(std::filesystem::path shaderSourceFile, VulkanEngine& ve)
-{
-    std::string filePath = shaderSourceFile.string();
-    std::string compiledPath = shaderSourceFile.replace_extension(".spv").string();
-    std::array<char, 128> buffer;
-    std::string result;
-    std::string cmd = "glslc.exe " + filePath + " -o " +  compiledPath;
-    std::unique_ptr<FILE, decltype(&_pclose)> pipe(_popen(cmd.c_str(), "r"), _pclose);
-    if (!pipe) {
-        throw std::runtime_error("failed to send shell command for shader reload");
-    }
-    while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
-        result += buffer.data();
-    }
-    std::cout << result << std::endl;
-    ve.recreateGraphicsPipeline();
-}
+HANDLE dwChangeHandle;
 
 int main()
 {
@@ -66,30 +50,30 @@ int main()
 
 	ve.init_vulkan();
 	char frameTimeOutput[16];
+
+	DWORD waitStatus;
+	dwChangeHandle = FindFirstChangeNotification(SHADER_PATH.c_str(), FALSE, FILE_NOTIFY_CHANGE_LAST_WRITE);
 	while (!glfwWindowShouldClose(ve._window))
 	{
-		for (auto& file : std::filesystem::recursive_directory_iterator(SHADER_PATH)) 
-		{
-		    if (file.path().extension().string() == ".spv") continue;
-		    auto last_write_time = std::filesystem::last_write_time(file);
+		
+		waitStatus = WaitForSingleObject(dwChangeHandle, 0);
 
-		    auto filePath = file.path().string();
-		    auto keyExists = shaderPaths.find(filePath) != shaderPaths.end();
-		    if (keyExists)
-		    {
-		        // File was written to since we last checked
-		        if (last_write_time != shaderPaths[filePath])
-		        {
-		            std::cout << filePath << " was changed!" << std::endl;
-		            shaderPaths[filePath] = last_write_time;
-		            
-		            shaderFileChanged(file.path(), ve);
-		        }
-		    }
-		    else 
-		    {
-		        shaderPaths[filePath] = last_write_time;
-		    }
+		if(waitStatus == WAIT_OBJECT_0)
+		{
+			FindCloseChangeNotification(dwChangeHandle);
+			std::array<char, 512> buffer;
+			std::string result;
+			std::string cmd = "resources\\shaders\\compile.bat";
+			std::unique_ptr<FILE, decltype(&_pclose)> pipe(_popen(cmd.c_str(), "r"), _pclose);
+			// if (!pipe) {
+			//     throw std::runtime_error("failed to send shell command for shader reload");
+			// }
+			while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
+			    result += buffer.data();
+			}
+			std::cout << "Updated shaders" << std::endl;
+			ve.recreateGraphicsPipeline();
+			dwChangeHandle = FindFirstChangeNotification(SHADER_PATH.c_str(), FALSE, FILE_NOTIFY_CHANGE_LAST_WRITE);
 		}
 		auto startTime = glfwGetTime();
 		// keep running
@@ -115,6 +99,7 @@ int main()
 		//std::this_thread::sleep_for(timeToSleep);
 		
 	}
+	FindCloseChangeNotification(dwChangeHandle);
 	ve.shutdown_vulkan();
 
 	// wait for input so I can read my validation errors :)
