@@ -49,10 +49,14 @@ int main()
 	const auto MS_PER_FRAME = std::chrono::duration<double, std::milli> (16.7);
 
 	ve.init_vulkan();
-	char frameTimeOutput[16];
+	char frameTimeOutput[50];
 
 	DWORD waitStatus;
 	dwChangeHandle = FindFirstChangeNotification(SHADER_PATH.c_str(), FALSE, FILE_NOTIFY_CHANGE_LAST_WRITE);
+
+	double avgFrameTime = 16.0;
+	const double alpha = 0.9; // how fast to move towards newer avg
+	
 	while (!glfwWindowShouldClose(ve._window))
 	{
 		
@@ -81,9 +85,8 @@ int main()
 		
 		
 		ve.drawSprite(50, 50, 64*3, 64*2);
-		// std::snprintf()
-		ve.drawText(300, 300, (char*)"Hello World!");
-		//ve.drawText(50, 50, (char*)frameTimeOutput);
+		sprintf(frameTimeOutput, "Time: %fms", avgFrameTime);
+		ve.drawText(5, 15, (char*)frameTimeOutput);
 
 		ve.drawFrame();
 		if (glfwGetKey(ve._window, GLFW_KEY_ESCAPE)  ==  GLFW_PRESS)
@@ -92,11 +95,12 @@ int main()
 		}
 
 		auto endTime = glfwGetTime();
-		auto timeSpent = std::chrono::duration<double>(endTime - startTime);
-		//std::cout << endTime - startTime << std::endl;
-		auto timeToSleep = MS_PER_FRAME -timeSpent;
+		double timeSpentMS = (endTime - startTime) * 1000;
+		avgFrameTime = alpha * avgFrameTime + (1.0 - alpha) * timeSpentMS;
 
-		//std::this_thread::sleep_for(timeToSleep);
+		// auto timeSpent = std::chrono::duration<double>(endTime - startTime);
+		// auto timeToSleep = MS_PER_FRAME -timeSpent;
+		// //std::this_thread::sleep_for(timeToSleep);
 		
 	}
 	FindCloseChangeNotification(dwChangeHandle);
