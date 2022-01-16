@@ -41,6 +41,8 @@ public:
 	void drawText(float x, float y, char* text);
 	void recreateGraphicsPipeline();
 	void recreateSwapChain();
+	uint32_t createTextureImage();
+
 
 
 	GLFWwindow* _window;
@@ -86,7 +88,6 @@ private:
 	void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
 	void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
 	void createFontTexture();
-	void createTextureImage();
 	void createTextureImageViews();
 	void createTextureSampler();
 	VkImageView createImageView(VkImage image, VkFormat format);
@@ -97,6 +98,7 @@ private:
 	void createDescriptorPool();
 	void createDescriptorSets();
 	void updateBuffers(uint32_t currentImage);
+	void updateDescriptorSets();
 	static void handleResize(GLFWwindow* window, int width, int height);
 
 	const int MAX_FRAMES_IN_FLIGHT = 2;
@@ -144,6 +146,7 @@ private:
 
 	std::vector<uint16_t> _indices;
 	stbtt_bakedchar cdata[96]; // ASCII 32..126 is 95 glyphs
+	
 
 	const int MAX_SPRITES = 2048;
 	const int MAX_INDICES = 2048;

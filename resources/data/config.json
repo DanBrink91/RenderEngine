@@ -1,5 +1,41 @@
 {
 	"width": 800,
 	"height": 600,
-	"vsync": "true"
+	"vsync": "true",
+	"textures": [
+		{
+			"name": "dice 1",
+			"path": "resources/sprites/dice1.png"		
+		},
+		{
+			"name": "dice 2",
+			"path": "resources/sprites/dice2.png"		
+		},
+		{
+			"name": "dice 3",
+			"path": "resources/sprites/dice3.png"		
+		},
+		{
+			"name": "dice 4",
+			"path": "resources/sprites/dice4.png"		
+		},
+		{
+			"name": "dice 5",
+			"path": "resources/sprites/dice5.png"		
+		},
+		{
+			"name": "dice 6",
+			"path": "resources/sprites/dice6.png"		
+		}
+		,
+		{
+			"name": "orc",
+			"path": "resources/sprites/orc.png"		
+		}
+		,
+		{
+			"name": "golem",
+			"path": "resources/sprites/golem.png"		
+		}
+	]
 }

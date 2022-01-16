@@ -3,9 +3,11 @@
 #include <thread>
 #include <stdio.h>
 
+#if defined(_WIN32) || defined(_WIN64)
 #include <windows.h >
+#endif
+
 // #include <filesystem>
-#include <unordered_map>
 
 #include "rapidjson/document.h"
 
@@ -14,52 +16,44 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 
+#ifdef GetObject
+#undef GetObject
+#endif
+
 #include "Vulkan/vk_engine.h"
+#include "Game/GameManager.h"
+
 
 using dmilliseconds = std::chrono::duration<double, std::milli>;
 const std::string SHADER_PATH = "resources/shaders/";
 
-HANDLE dwChangeHandle;
 
 int main()
 {
-	std::ifstream file("resources/data/config.json", std::ios::ate);
-	if(!file.is_open())
-	{
-		std::cout << "failed to open file!";
-	}
-	size_t fileSize = (size_t)file.tellg();
-
-
-	std::vector<char> buffer(fileSize);
-	file.seekg(0);
-	file.read(buffer.data(), fileSize);
-	file.close();
-
-	rapidjson::Document config;
-	char* json = reinterpret_cast<char*>(buffer.data());
-	if(config.ParseInsitu(json).HasParseError())
-	{
-		std::cout << "ERROR!!!!" << std::endl;
-	}
-	config.Parse(json);
-	// rapidjson::Value& w = config["width"];
-	std::cout << config["width"].GetInt() << std::endl;
 	VulkanEngine ve;
-	const auto MS_PER_FRAME = std::chrono::duration<double, std::milli> (16.7);
+	GameManager gm;
 
 	ve.init_vulkan();
-	char frameTimeOutput[50];
+	gm.init(ve);
 
-	DWORD waitStatus;
-	dwChangeHandle = FindFirstChangeNotification(SHADER_PATH.c_str(), FALSE, FILE_NOTIFY_CHANGE_LAST_WRITE);
+	const auto MS_PER_FRAME = std::chrono::duration<double, std::milli> (16.7);
+	char frameTimeOutput[50], fpsOutput[50];
 
+
+
+	const double alpha = 0.95; // how fast to move towards newer avg
 	double avgFrameTime = 16.0;
-	const double alpha = 0.9; // how fast to move towards newer avg
+	double avgFPS = 60.0;
+
+	#if defined(_WIN32) || defined(_WIN64)
+	DWORD waitStatus;
+	HANDLE dwChangeHandle;
+	dwChangeHandle = FindFirstChangeNotification(SHADER_PATH.c_str(), FALSE, FILE_NOTIFY_CHANGE_LAST_WRITE);
+	#endif
 	
 	while (!glfwWindowShouldClose(ve._window))
 	{
-		
+		#if defined(_WIN32) || defined(_WIN64)
 		waitStatus = WaitForSingleObject(dwChangeHandle, 0);
 
 		if(waitStatus == WAIT_OBJECT_0)
@@ -79,14 +73,20 @@ int main()
 			ve.recreateGraphicsPipeline();
 			dwChangeHandle = FindFirstChangeNotification(SHADER_PATH.c_str(), FALSE, FILE_NOTIFY_CHANGE_LAST_WRITE);
 		}
+		#endif
+
 		auto startTime = glfwGetTime();
 		// keep running
 		glfwPollEvents();
 		
 		
-		ve.drawSprite(50, 50, 64*3, 64*2);
-		sprintf(frameTimeOutput, "Time: %fms", avgFrameTime);
+		// ve.drawSprite(50, 50, 84, 84);
+		
+		sprintf(frameTimeOutput, "Avg Time: %.2fms", avgFrameTime);
+		sprintf(fpsOutput, "Avg FPS:  %.1f", avgFPS);
+		
 		ve.drawText(5, 15, (char*)frameTimeOutput);
+		ve.drawText(5, 31, (char*)fpsOutput);
 
 		ve.drawFrame();
 		if (glfwGetKey(ve._window, GLFW_KEY_ESCAPE)  ==  GLFW_PRESS)
@@ -95,15 +95,18 @@ int main()
 		}
 
 		auto endTime = glfwGetTime();
-		double timeSpentMS = (endTime - startTime) * 1000;
-		avgFrameTime = alpha * avgFrameTime + (1.0 - alpha) * timeSpentMS;
-
-		// auto timeSpent = std::chrono::duration<double>(endTime - startTime);
-		// auto timeToSleep = MS_PER_FRAME -timeSpent;
-		// //std::this_thread::sleep_for(timeToSleep);
+		double timeSpentS = (endTime - startTime);
+		avgFrameTime = alpha * avgFrameTime + (1.0 - alpha) * timeSpentS * 1000;
+		avgFPS = alpha * avgFPS + (1.0 - alpha) * 1.0 / timeSpentS;
 		
+	 	// auto timeSpent = std::chrono::duration<double>(endTime - startTime);
+		// auto timeToSleep = MS_PER_FRAME - timeSpent;
+		// std::cout << "hello" << std::endl;
+		// std::this_thread::sleep_for(timeToSleep);
 	}
+	#if defined(_WIN32) || defined(_WIN64)
 	FindCloseChangeNotification(dwChangeHandle);
+	#endif
 	ve.shutdown_vulkan();
 
 	// wait for input so I can read my validation errors :)

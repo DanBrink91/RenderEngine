@@ -95,7 +95,7 @@ void VulkanEngine::init_vulkan()
 	createFramebuffers();
 	createCommandPools();
 	createFontTexture();
-	createTextureImage();
+	// createTextureImage();
 	createTextureImageViews();
 	createTextureSampler();
 	createDescriptorPool();
@@ -443,7 +443,7 @@ VkPresentModeKHR VulkanEngine::chooseSwapPresentMode()
 
 	for (const auto& availablePresentMode : availablePresentModes) 
 	{
-        if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR) 
+        if (availablePresentMode == VK_PRESENT_MODE_FIFO_KHR) 
         {
  	       return availablePresentMode;
         }
@@ -929,14 +929,14 @@ void VulkanEngine::createFontTexture()
     _textureImagesMemory.push_back(textureImageMemory);
 }
 
-void VulkanEngine::createTextureImage()
+uint32_t VulkanEngine::createTextureImage()
 {
 	
 	VkImage textureImage;
 	VkDeviceMemory textureImageMemory;
 
 	int texWidth, texHeight, texChannels;
-    stbi_uc* pixels = stbi_load("resources/sprites/diceRed.png", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+    stbi_uc* pixels = stbi_load("resources/sprites/dice1.png", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
     VkDeviceSize imageSize = texWidth * texHeight * 4;
 
     if (!pixels) 
@@ -994,8 +994,12 @@ void VulkanEngine::createTextureImage()
 	vkDestroyBuffer(_device, stagingBuffer, nullptr);
     vkFreeMemory(_device, stagingBufferMemory, nullptr);
 
+    uint32_t textureIndex = _textureImages.size();
+
     _textureImages.push_back(textureImage);
     _textureImagesMemory.push_back(textureImageMemory);
+
+    return textureIndex;
 }
 
 VkCommandBuffer VulkanEngine::beginSingleTimeCommands() 
