@@ -18,7 +18,7 @@
 
 
 #include <stb_truetype.h>
-
+// CPU -> GPU structs
 struct SpriteVertexData
 {
 	glm::vec2 position;
@@ -31,17 +31,32 @@ struct SpriteDrawData
 	glm::vec3 glowColor;
 };
 
+// CPU only structs
+struct Texture
+{
+	uint32_t id;
+	int width, height;
+	glm::vec2 UV;
+};
+
+struct Sprite 
+{
+	glm::vec2 position;
+	Texture *texture;
+};
+
+
 // TODO: builder design for some of these init structs?
 class VulkanEngine {
 public:
 	void init_vulkan();
 	void shutdown_vulkan();
 	void drawFrame();
-	void drawSprite(int x, int y, int width, int height);
+	void drawSprite(Sprite sprite);
 	void drawText(float x, float y, char* text);
 	void recreateGraphicsPipeline();
 	void recreateSwapChain();
-	uint32_t createTextureImage();
+	Texture createTextureImage(std::string texturePath);
 
 
 
@@ -98,8 +113,9 @@ private:
 	void createDescriptorPool();
 	void createDescriptorSets();
 	void updateBuffers(uint32_t currentImage);
-	void updateDescriptorSets();
+	void updateDescriptorSets(uint32_t imageIndex);
 	static void handleResize(GLFWwindow* window, int width, int height);
+	void createColorResources();
 
 	const int MAX_FRAMES_IN_FLIGHT = 2;
 	size_t currentFrame = 0;
@@ -147,6 +163,12 @@ private:
 	std::vector<uint16_t> _indices;
 	stbtt_bakedchar cdata[96]; // ASCII 32..126 is 95 glyphs
 	
+	std::vector<uint32_t> _texturesToUpdatePerSwap;
+
+	VkSampleCountFlagBits _msaaSamples = VK_SAMPLE_COUNT_1_BIT;
+	VkImage _colorImage;
+	VkDeviceMemory _colorImageMemory;
+	VkImageView _colorImageView;
 
 	const int MAX_SPRITES = 2048;
 	const int MAX_INDICES = 2048;

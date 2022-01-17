@@ -79,7 +79,7 @@ int main()
 		// keep running
 		glfwPollEvents();
 		
-		
+		gm.update();
 		// ve.drawSprite(50, 50, 84, 84);
 		
 		sprintf(frameTimeOutput, "Avg Time: %.2fms", avgFrameTime);

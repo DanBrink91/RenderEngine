@@ -28,6 +28,9 @@ void main() {
     SpriteVertex sprite = spriteVertex[gl_VertexIndex];
     SpriteDrawData dd = spriteDrawData[gl_VertexIndex / 4];
     
+    vec2 worldPos = 2 * UV - 0.5;
+    vec2 offset = 0.001 * normalize(worldPos);
+
     gl_Position = vec4(sprite.position, 0.0, 1.0);
     UV = sprite.uv;
     textureIndex = dd.textureIndex;

@@ -1,9 +1,9 @@
-
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 
 #include <vector>
+#include <unordered_map>
 
 #include "rapidjson/document.h"
 
@@ -14,17 +14,37 @@
 #undef GetObject
 #endif
 
-struct Sprite 
+struct Enemy
 {
-	glm::vec2 position;
-	int width, height;
-	int texture;
+	Sprite sprite;
+	int currentHealth, maxHealth, armor;
 };
 
-struct Texture
+struct BattleInfo 
 {
-	uint32_t id;
-	glm::vec2 UV;
+	int currentTurn;
+	Enemy* enemies;
+};
+
+struct MouseState
+{
+	double previousX, previousY;
+	double x, y;
+	bool down[2];
+	int dragSpriteIndex;
+};
+
+struct Dice
+{
+	int value;
+};
+
+struct PlayerStats
+{
+	int currentHP;
+	int maxHP;
+	int diceCount;
+	std::vector<Dice> dice;
 };
 
 class GameManager {
@@ -33,10 +53,14 @@ public:
 	void update();
 private:
 	void loadData();
+	void updateMouseInput();
 	void updateSprites();
 	void updateText();
 	
 	VulkanEngine* _vulkanEngine;
 	std::vector<Texture> _textures;
 	std::vector<Sprite> _sprites;
+	std::unordered_map<std::string, Texture> _textureLookup;
+	MouseState _mouseState;
+	PlayerStats _stats;
 };

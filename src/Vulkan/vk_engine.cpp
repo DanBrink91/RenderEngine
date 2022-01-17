@@ -92,10 +92,10 @@ void VulkanEngine::init_vulkan()
 	createIndexBuffer();
 	createBuffers();
 	createGraphicsPipeline();
+	createColorResources();
 	createFramebuffers();
 	createCommandPools();
 	createFontTexture();
-	// createTextureImage();
 	createTextureImageViews();
 	createTextureSampler();
 	createDescriptorPool();
@@ -104,13 +104,16 @@ void VulkanEngine::init_vulkan()
 	createSyncObjects();
 }
 
-void VulkanEngine::drawSprite(int x, int y, int width, int height)
+void VulkanEngine::drawSprite(Sprite sprite)
 {
-	float screenSpaceLeft = (float(x) / _windowWidth) * 2.0 - 1.0;
-	float screenSpaceRight = (float(x + width) / _windowWidth) * 2.0 - 1.0;
+	// std::cout << "Drawing sprite!!" << std::endl;
+	// std::cout << sprite.position.x << ",  " << sprite.position.y << std::endl;
+	// std::cout << sprite.texture->width << ", " << sprite.texture->height << std::endl;
+	float screenSpaceLeft = (sprite.position.x / _windowWidth) * 2.0 - 1.0;
+	float screenSpaceRight = (float(sprite.position.x + sprite.texture->width) / _windowWidth) * 2.0 - 1.0;
 
-	float screenSpaceTop = (float(y) / _windowHeight) * 2.0 - 1.0;
-	float screenSpaceBottom = (float(y + height) / _windowHeight) * 2.0 - 1.0;
+	float screenSpaceTop = (float(sprite.position.y) / _windowHeight) * 2.0 - 1.0;
+	float screenSpaceBottom = (float(sprite.position.y + sprite.texture->height) / _windowHeight) * 2.0 - 1.0;
 
 
 	int indexStart = _spriteVertices.size();
@@ -127,7 +130,7 @@ void VulkanEngine::drawSprite(int x, int y, int width, int height)
 	_indices.push_back((uint16_t)indexStart);
 	_indices.push_back((uint16_t)indexStart + 2);
 
-	_spriteDrawData.push_back({1, {0, .3, 1}});
+	_spriteDrawData.push_back({sprite.texture->id, {0, .3, 1}});
 }
 
 void VulkanEngine::drawText(float x, float y, char* text) 
@@ -233,6 +236,7 @@ void VulkanEngine::create_device()
 {
 	VkPhysicalDeviceFeatures deviceFeatures{};
 	deviceFeatures.samplerAnisotropy = VK_TRUE;
+	deviceFeatures.sampleRateShading = VK_TRUE;
 	deviceFeatures.fillModeNonSolid = VK_TRUE;
 	deviceFeatures.wideLines = VK_TRUE;
 
@@ -253,10 +257,19 @@ void VulkanEngine::create_device()
 	// CREATE QUEUE
 	VkPhysicalDeviceProperties physicalProperties = {};
 	vkGetPhysicalDeviceProperties(_chosenGPU, &physicalProperties);
-
+	std::cout << "max samples: " << physicalProperties.limits.framebufferColorSampleCounts << std::endl;
 	std::cout << "ubo: " << physicalProperties.limits.maxUniformBufferRange << " ssbo: " << physicalProperties.limits.maxStorageBufferRange << std::endl;
 	std::cout << "Max push constants size: " << physicalProperties.limits.maxPushConstantsSize << std::endl;
 	std::cout << "Max descriptor samplers per stage: " << physicalProperties.limits.maxPerStageDescriptorSamplers << std::endl;
+
+	VkSampleCountFlags counts = physicalProperties.limits.framebufferColorSampleCounts;// & physicalProperties.limits.framebufferDepthSampleCounts;
+	// VK_SAMPLE_COUNT_1_BIT
+	if (counts & VK_SAMPLE_COUNT_2_BIT) { _msaaSamples = VK_SAMPLE_COUNT_2_BIT; }
+	if (counts & VK_SAMPLE_COUNT_4_BIT) { _msaaSamples = VK_SAMPLE_COUNT_4_BIT; }
+	if (counts & VK_SAMPLE_COUNT_8_BIT) { _msaaSamples = VK_SAMPLE_COUNT_8_BIT; }
+	if (counts & VK_SAMPLE_COUNT_16_BIT) { _msaaSamples = VK_SAMPLE_COUNT_16_BIT; }
+	if (counts & VK_SAMPLE_COUNT_32_BIT) { _msaaSamples = VK_SAMPLE_COUNT_32_BIT; }
+	if (counts & VK_SAMPLE_COUNT_64_BIT) { _msaaSamples = VK_SAMPLE_COUNT_64_BIT; }
 
 	VkPhysicalDeviceMemoryProperties memProperties;
 	vkGetPhysicalDeviceMemoryProperties(_chosenGPU, &memProperties);
@@ -525,6 +538,9 @@ void VulkanEngine::createSwapChain()
 	vkGetSwapchainImagesKHR(_device, _swapChain, &imageCount, _swapChainImages.data());
 	std::cout << "Using " << imageCount << " images for the swapchain!" << std::endl;
 	createImageViews();
+	_texturesToUpdatePerSwap.resize(imageCount);
+	for(int i = 0; i < imageCount; i++)
+		_texturesToUpdatePerSwap[i] = 0;
 }	
 
 void VulkanEngine::createImageViews()
@@ -574,35 +590,51 @@ void VulkanEngine::createRenderPass()
 {
 	VkAttachmentDescription colorAttachment{};
    	colorAttachment.format = _swapChainImageFormat.format;
-   	colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+   	colorAttachment.samples = _msaaSamples;
    	colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
    	colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
    	colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
    	colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
    	colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-   	colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+   	colorAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+   	VkAttachmentDescription colorAttachmentResolve{};
+   colorAttachmentResolve.format = _swapChainImageFormat.format;
+   colorAttachmentResolve.samples = VK_SAMPLE_COUNT_1_BIT;
+   colorAttachmentResolve.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+   colorAttachmentResolve.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+   colorAttachmentResolve.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+   colorAttachmentResolve.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+   colorAttachmentResolve.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+   colorAttachmentResolve.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
    	VkAttachmentReference colorAttachmentRef{};
    	colorAttachmentRef.attachment = 0;
    	colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
+    VkAttachmentReference colorAttachmentResolveRef{};
+    colorAttachmentResolveRef.attachment = 1;
+    colorAttachmentResolveRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
    	VkSubpassDescription subpass{};
    	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
    	subpass.colorAttachmentCount = 1;
    	subpass.pColorAttachments = &colorAttachmentRef;
+   	subpass.pResolveAttachments =  &colorAttachmentResolveRef;
 
    	VkSubpassDependency dependency{};
    	dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
    	dependency.dstSubpass = 0;
-   	dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+   	dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
    	dependency.srcAccessMask = 0;
-   	dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+   	dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
    	dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
+    std::array<VkAttachmentDescription, 2> attachments = {colorAttachment, colorAttachmentResolve };
    	VkRenderPassCreateInfo renderPassInfo{};
    	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-   	renderPassInfo.attachmentCount = 1;
-   	renderPassInfo.pAttachments = &colorAttachment;
+   	renderPassInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
+   	renderPassInfo.pAttachments = attachments.data();
    	renderPassInfo.subpassCount = 1;
    	renderPassInfo.pSubpasses = &subpass;
    	renderPassInfo.dependencyCount = 1;
@@ -729,9 +761,9 @@ void VulkanEngine::createGraphicsPipeline()
 
 	VkPipelineMultisampleStateCreateInfo multisampling{};
 	multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-	multisampling.sampleShadingEnable = VK_FALSE;
-	multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-	multisampling.minSampleShading = 1.0f; // Optional
+	multisampling.sampleShadingEnable = VK_TRUE;
+	multisampling.rasterizationSamples = _msaaSamples;
+	multisampling.minSampleShading = 1.0f; // close to one is smooth
 	multisampling.pSampleMask = nullptr; // Optional
 	multisampling.alphaToCoverageEnable = VK_FALSE; // Optional
 	multisampling.alphaToOneEnable = VK_FALSE; // Optional
@@ -798,15 +830,17 @@ void VulkanEngine::createFramebuffers()
 {
 	_swapChainFramebuffers.resize(_swapChainImageViews.size());
 	for (size_t i = 0; i < _swapChainImageViews.size(); i++) {
-	    VkImageView attachments[] = {
+	    
+	    std::array<VkImageView, 2> attachments = {
+	    	_colorImageView,
 	        _swapChainImageViews[i]
 	    };
 
 	    VkFramebufferCreateInfo framebufferInfo{};
 	    framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 	    framebufferInfo.renderPass = _renderPass;
-	    framebufferInfo.attachmentCount = 1;
-	    framebufferInfo.pAttachments = attachments;
+	    framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
+	    framebufferInfo.pAttachments = attachments.data();
 	    framebufferInfo.width = _swapChainExtent.width;
 	    framebufferInfo.height = _swapChainExtent.height;
 	    framebufferInfo.layers = 1;
@@ -896,7 +930,7 @@ void VulkanEngine::createFontTexture()
 	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;//_msaaSamples;
 	imageInfo.flags = 0; // Optional
 
 	if (vkCreateImage(_device, &imageInfo, nullptr, &textureImage) != VK_SUCCESS) {
@@ -927,16 +961,17 @@ void VulkanEngine::createFontTexture()
 
     _textureImages.push_back(textureImage);
     _textureImagesMemory.push_back(textureImageMemory);
+
 }
 
-uint32_t VulkanEngine::createTextureImage()
+Texture VulkanEngine::createTextureImage(std::string texturePath)
 {
 	
 	VkImage textureImage;
 	VkDeviceMemory textureImageMemory;
 
 	int texWidth, texHeight, texChannels;
-    stbi_uc* pixels = stbi_load("resources/sprites/dice1.png", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+    stbi_uc* pixels = stbi_load(texturePath.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
     VkDeviceSize imageSize = texWidth * texHeight * 4;
 
     if (!pixels) 
@@ -965,7 +1000,7 @@ uint32_t VulkanEngine::createTextureImage()
 	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;//_msaaSamples;
 	imageInfo.flags = 0; // Optional
 
 	if (vkCreateImage(_device, &imageInfo, nullptr, &textureImage) != VK_SUCCESS) {
@@ -994,12 +1029,56 @@ uint32_t VulkanEngine::createTextureImage()
 	vkDestroyBuffer(_device, stagingBuffer, nullptr);
     vkFreeMemory(_device, stagingBufferMemory, nullptr);
 
-    uint32_t textureIndex = _textureImages.size();
+    for(int i = 0; i < _swapChainImages.size(); i++)
+    {
+    	_texturesToUpdatePerSwap[i]++;
+    }
+    Texture t = { .id = static_cast<uint32_t>(_textureImages.size()), .width = texWidth, .height = texHeight, .UV = {0.0, 1.0}};
 
+    _textureImageViews.push_back(createImageView(textureImage, VK_FORMAT_R8G8B8A8_SRGB));
     _textureImages.push_back(textureImage);
     _textureImagesMemory.push_back(textureImageMemory);
 
-    return textureIndex;
+    return t;
+}
+
+void VulkanEngine::createColorResources() 
+{
+	VkImageCreateInfo imageInfo{};
+	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	imageInfo.imageType = VK_IMAGE_TYPE_2D;
+	imageInfo.extent.width = _swapChainExtent.width;
+	imageInfo.extent.height = _swapChainExtent.height;
+	imageInfo.extent.depth = 1;
+	imageInfo.mipLevels = 1;
+	imageInfo.arrayLayers = 1;
+	imageInfo.format = _swapChainImageFormat.format;
+	imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	imageInfo.usage = VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	imageInfo.samples = _msaaSamples;
+	imageInfo.flags = 0; // Optional
+
+	if(vkCreateImage(_device, &imageInfo, nullptr, &_colorImage) != VK_SUCCESS)
+	{
+  	  throw std::runtime_error("failed to create color image!");
+	}
+
+	VkMemoryRequirements memRequirements;
+    vkGetImageMemoryRequirements(_device, _colorImage, &memRequirements);
+
+    VkMemoryAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize = memRequirements.size;
+    allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+    if (vkAllocateMemory(_device, &allocInfo, nullptr, &_colorImageMemory) != VK_SUCCESS) {
+        throw std::runtime_error("failed to allocate color image memory!");
+    }
+
+    vkBindImageMemory(_device, _colorImage, _colorImageMemory, 0);
+    _colorImageView = createImageView(_colorImage, _swapChainImageFormat.format);
 }
 
 VkCommandBuffer VulkanEngine::beginSingleTimeCommands() 
@@ -1206,6 +1285,9 @@ void VulkanEngine::drawFrame()
 	} else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
 	   std::cout << "failed to acquire swap chain image!" << std::endl;;
 	}
+
+	updateDescriptorSets(imageIndex);
+	
 	currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 	_indices.clear(); 
 }
@@ -1368,10 +1450,46 @@ void VulkanEngine::createDescriptorPool()
 	}
 }
 
+void VulkanEngine::updateDescriptorSets(uint32_t imageIndex)
+{
+		for (size_t i = 0; i < _swapChainImages.size(); i++) 
+		{
+			// don't update descriptor set in use
+		    if(_texturesToUpdatePerSwap[i] == 0 ||
+		    	_imagesInFlight[i] == VK_NULL_HANDLE ||
+		    	VK_TIMEOUT == vkWaitForFences(_device, 1, &_imagesInFlight[i], VK_TRUE, 0))
+		    {
+		    	continue;
+		    }
+		    VkWriteDescriptorSet descriptorWrite{};
+
+	        std::vector<VkDescriptorImageInfo> imageInfo;
+	        imageInfo.resize(_textureImageViews.size());
+	        for (uint32_t img = 0; img < _textureImageViews.size(); img++)
+	        {
+	            imageInfo[img].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	            imageInfo[img].imageView = _textureImageViews[img];
+	            imageInfo[img].sampler = _textureSampler;
+	        }
+
+	        descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	        descriptorWrite.dstSet = _descriptorSets[i];
+	        descriptorWrite.dstBinding = 2;
+	        descriptorWrite.dstArrayElement = 0;
+	        descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	        descriptorWrite.descriptorCount = (uint32_t)imageInfo.size();
+	        descriptorWrite.pImageInfo = imageInfo.data();
+
+	        vkUpdateDescriptorSets(_device, 1, &descriptorWrite, 0, nullptr);
+	        _texturesToUpdatePerSwap[i] = 0;
+		}
+}
+
 void VulkanEngine::createDescriptorSets()
 {
 	std::vector<VkDescriptorSetLayout> layouts(_swapChainImages.size(), _descriptorSetLayout);
 	
+
 	VkDescriptorSetAllocateInfo allocInfo{};
 	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 	allocInfo.descriptorPool = _descriptorPool;
@@ -1437,6 +1555,10 @@ void VulkanEngine::createDescriptorSets()
 
 void VulkanEngine::cleanupSwapChain() 
 {
+	vkDestroyImageView(_device, _colorImageView, nullptr);
+    vkDestroyImage(_device, _colorImage, nullptr);
+    vkFreeMemory(_device, _colorImageMemory, nullptr);
+
 	for (auto framebuffer : _swapChainFramebuffers) {
 		vkDestroyFramebuffer(_device, framebuffer, nullptr);
 	}
@@ -1489,6 +1611,7 @@ void VulkanEngine::recreateSwapChain()
 	createSwapChain();
 	createImageViews();
 	createRenderPass();
+	createColorResources();
 	createDescriptorSetLayout();
 	createGraphicsPipeline();
 	createFramebuffers();
