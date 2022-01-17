@@ -1247,6 +1247,7 @@ void VulkanEngine::drawFrame()
     _imagesInFlight[imageIndex] = _inFlightFences[currentFrame];
 
     updateBuffers(imageIndex);
+	updateDescriptorSets(imageIndex);
     updateCommandBuffer(imageIndex);
 
 	VkSubmitInfo submitInfo{};
@@ -1265,7 +1266,9 @@ void VulkanEngine::drawFrame()
 	submitInfo.pSignalSemaphores = signalSemaphores;
 
 	vkResetFences(_device, 1, &_inFlightFences[currentFrame]);
-	if (vkQueueSubmit(_graphicsQueue, 1, &submitInfo, _inFlightFences[currentFrame]) != VK_SUCCESS) {
+	result = vkQueueSubmit(_graphicsQueue, 1, &submitInfo, _inFlightFences[currentFrame]);
+	if (result != VK_SUCCESS) {
+	    std::cout << result << std::endl;
 	    throw std::runtime_error("failed to submit draw command buffer!");
 	}
 
@@ -1286,7 +1289,6 @@ void VulkanEngine::drawFrame()
 	   std::cout << "failed to acquire swap chain image!" << std::endl;;
 	}
 
-	updateDescriptorSets(imageIndex);
 	
 	currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 	_indices.clear(); 
@@ -1454,10 +1456,7 @@ void VulkanEngine::updateDescriptorSets(uint32_t imageIndex)
 {
 		for (size_t i = 0; i < _swapChainImages.size(); i++) 
 		{
-			// don't update descriptor set in use
-		    if(_texturesToUpdatePerSwap[i] == 0 ||
-		    	_imagesInFlight[i] == VK_NULL_HANDLE ||
-		    	VK_TIMEOUT == vkWaitForFences(_device, 1, &_imagesInFlight[i], VK_TRUE, 0))
+		    if(i != imageIndex || _texturesToUpdatePerSwap[i] == 0)
 		    {
 		    	continue;
 		    }

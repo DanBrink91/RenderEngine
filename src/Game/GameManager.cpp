@@ -73,26 +73,28 @@ void GameManager::updateText()
 
 void GameManager::loadData() 
 {
-	std::ifstream file("resources/data/config.json", std::ios::ate);
+	std::ifstream file("resources/data/config.json", std::ios::ate | std::ios::binary);
 	if(!file.is_open())
 	{
 		std::cout << "failed to open file!";
 	}
-	size_t fileSize = (size_t)file.tellg();
 
-	std::vector<char> buffer(fileSize);
-	file.seekg(0);
-	file.read(buffer.data(), fileSize);
+	std::string buffer;
+	size_t fileSize = (size_t)file.tellg();
+	buffer.resize(fileSize);
+
+	file.seekg(0, std::ios::beg);
+	file.read(&buffer[0], fileSize);
 	file.close();
 
 	rapidjson::Document config;
-	char* json = reinterpret_cast<char*>(buffer.data());
 
-	if(config.ParseInsitu(json).HasParseError())
+	rapidjson::ParseResult ok = config.Parse(buffer.c_str());
+	if(!ok)
 	{
-		std::cout << "ERROR Parsing config.json" << std::endl;
+		std::cout << "ERROR Parsing config.json: " << rapidjson::GetParseErrorFunc(ok.Code()) << " " << ok.Offset() << std::endl;
 	}
-	config.Parse(json);
+	// config.Parse(json);
 	// rapidjson::Value& w = config["width"];
 
 	// Player Starting Stats
@@ -112,7 +114,6 @@ void GameManager::loadData()
 	for(rapidjson::SizeType i = 0; i < textures.Size(); i++)
 	{
 		auto textureInfo = textures[i].GetObject();
-		// const rapidjson::Value& filePath = texture["path"].GetString();
 		Texture t = _vulkanEngine->createTextureImage(textureInfo["path"].GetString());
 		_textures.push_back(t);
 		_textureLookup[textureInfo["name"].GetString()] = t;
