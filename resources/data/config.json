@@ -9,27 +9,27 @@
 	},
 	"textures": [
 		{
-			"name": "dice 1",
+			"name": "1",
 			"path": "resources/sprites/dice1.png"		
 		},
 		{
-			"name": "dice 2",
+			"name": "2",
 			"path": "resources/sprites/dice2.png"		
 		},
 		{
-			"name": "dice 3",
+			"name": "3",
 			"path": "resources/sprites/dice3.png"		
 		},
 		{
-			"name": "dice 4",
+			"name": "4",
 			"path": "resources/sprites/dice4.png"		
 		},
 		{
-			"name": "dice 5",
+			"name": "5",
 			"path": "resources/sprites/dice5.png"		
 		},
 		{
-			"name": "dice 6",
+			"name": "6",
 			"path": "resources/sprites/dice6.png"		
 		}
 		,
@@ -41,6 +41,10 @@
 		{
 			"name": "golem",
 			"path": "resources/sprites/golem.png"		
+		},
+		{
+			"name": "panel",
+			"path": "resources/sprites/panel.png"		
 		}
 	]
 }

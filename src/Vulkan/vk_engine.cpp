@@ -419,6 +419,7 @@ void VulkanEngine::updateCommandBuffer(uint32_t currentImage)
     	vkCmdBindPipeline(_commandBuffers[currentImage], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline);
 	  		vkCmdBindIndexBuffer(_commandBuffers[currentImage], _indexBuffers[currentImage], 0, VK_INDEX_TYPE_UINT16);
     		vkCmdBindDescriptorSets(_commandBuffers[currentImage], VK_PIPELINE_BIND_POINT_GRAPHICS, _pipelineLayout, 0, 1, &_descriptorSets[currentImage], 0, nullptr);
+    			vkCmdPushConstants(_commandBuffers[currentImage], _pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstantData), &_pushConstantData);
     			vkCmdDrawIndexed(_commandBuffers[currentImage], static_cast<uint32_t>(_indices.size()), 1, 0, 0, 0);
     			//vkCmdDraw(_commandBuffers[currentImage], 3, 1, 0, 0);
     vkCmdEndRenderPass(_commandBuffers[currentImage]);
@@ -770,9 +771,9 @@ void VulkanEngine::createGraphicsPipeline()
 
 	VkPipelineColorBlendAttachmentState colorBlendAttachment{};
 	colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-	colorBlendAttachment.blendEnable = VK_FALSE;
-	colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE; // Optional
-	colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional
+	colorBlendAttachment.blendEnable = VK_TRUE;
+	colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA; 
+	colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA; // Optional
 	colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD; // Optional
 	colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE; // Optional
 	colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional
@@ -789,12 +790,15 @@ void VulkanEngine::createGraphicsPipeline()
 	colorBlending.blendConstants[2] = 0.0f; // Optional
 	colorBlending.blendConstants[3] = 0.0f; // Optional
 
+
+	VkPushConstantRange pushConstant = {.stageFlags=VK_SHADER_STAGE_VERTEX_BIT, .offset = 0, .size=sizeof(PushConstantData)};
+
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutInfo.setLayoutCount = 1;
 	pipelineLayoutInfo.pSetLayouts = &_descriptorSetLayout;
-	pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
-	pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
+	pipelineLayoutInfo.pushConstantRangeCount = 1; 
+	pipelineLayoutInfo.pPushConstantRanges = &pushConstant;
 
 	if (vkCreatePipelineLayout(_device, &pipelineLayoutInfo, nullptr, &_pipelineLayout) != VK_SUCCESS) {
 	    throw std::runtime_error("failed to create pipeline layout!");
@@ -961,7 +965,6 @@ void VulkanEngine::createFontTexture()
 
     _textureImages.push_back(textureImage);
     _textureImagesMemory.push_back(textureImageMemory);
-
 }
 
 Texture VulkanEngine::createTextureImage(std::string texturePath)
@@ -1033,7 +1036,7 @@ Texture VulkanEngine::createTextureImage(std::string texturePath)
     {
     	_texturesToUpdatePerSwap[i]++;
     }
-    Texture t = { .id = static_cast<uint32_t>(_textureImages.size()), .width = texWidth, .height = texHeight, .UV = {0.0, 1.0}};
+    Texture t = { .id = static_cast<int>(_textureImages.size()), .width = texWidth, .height = texHeight, .UV = {0.0, 1.0}};
 
     _textureImageViews.push_back(createImageView(textureImage, VK_FORMAT_R8G8B8A8_SRGB));
     _textureImages.push_back(textureImage);
@@ -1199,6 +1202,8 @@ void VulkanEngine::transitionImageLayout(VkImage image, VkFormat format, VkImage
 
 void VulkanEngine::updateBuffers(uint32_t currentImage)
 {
+	_pushConstantData.time = (float)glfwGetTime();
+
 	void* data;
 	if(_spriteVertices.size() > 0)
 	{
@@ -1452,36 +1457,34 @@ void VulkanEngine::createDescriptorPool()
 	}
 }
 
+// if we've uploaded new textures update the descriptor set for the image we're about to write to
 void VulkanEngine::updateDescriptorSets(uint32_t imageIndex)
 {
-		for (size_t i = 0; i < _swapChainImages.size(); i++) 
-		{
-		    if(i != imageIndex || _texturesToUpdatePerSwap[i] == 0)
-		    {
-		    	continue;
-		    }
-		    VkWriteDescriptorSet descriptorWrite{};
+	    if(_texturesToUpdatePerSwap[imageIndex] == 0)
+	    {
+	    	return;
+	    }
+	    VkWriteDescriptorSet descriptorWrite{};
 
-	        std::vector<VkDescriptorImageInfo> imageInfo;
-	        imageInfo.resize(_textureImageViews.size());
-	        for (uint32_t img = 0; img < _textureImageViews.size(); img++)
-	        {
-	            imageInfo[img].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	            imageInfo[img].imageView = _textureImageViews[img];
-	            imageInfo[img].sampler = _textureSampler;
-	        }
+        std::vector<VkDescriptorImageInfo> imageInfo;
+        imageInfo.resize(_textureImageViews.size());
+        for (uint32_t img = 0; img < _textureImageViews.size(); img++)
+        {
+            imageInfo[img].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            imageInfo[img].imageView = _textureImageViews[img];
+            imageInfo[img].sampler = _textureSampler;
+        }
 
-	        descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	        descriptorWrite.dstSet = _descriptorSets[i];
-	        descriptorWrite.dstBinding = 2;
-	        descriptorWrite.dstArrayElement = 0;
-	        descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	        descriptorWrite.descriptorCount = (uint32_t)imageInfo.size();
-	        descriptorWrite.pImageInfo = imageInfo.data();
+        descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrite.dstSet = _descriptorSets[imageIndex];
+        descriptorWrite.dstBinding = 2;
+        descriptorWrite.dstArrayElement = 0;
+        descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        descriptorWrite.descriptorCount = (uint32_t)imageInfo.size();
+        descriptorWrite.pImageInfo = imageInfo.data();
 
-	        vkUpdateDescriptorSets(_device, 1, &descriptorWrite, 0, nullptr);
-	        _texturesToUpdatePerSwap[i] = 0;
-		}
+        vkUpdateDescriptorSets(_device, 1, &descriptorWrite, 0, nullptr);
+        _texturesToUpdatePerSwap[imageIndex] = 0;
 }
 
 void VulkanEngine::createDescriptorSets()

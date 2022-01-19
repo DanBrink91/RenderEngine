@@ -4,6 +4,9 @@
 
 #include <vector>
 #include <unordered_map>
+#include <random>
+#include <string>
+#include <chrono>
 
 #include "rapidjson/document.h"
 
@@ -34,6 +37,12 @@ struct MouseState
 	int dragSpriteIndex;
 };
 
+struct MouseInteractive
+{
+	int spriteIndex;
+	bool draggable;
+};
+
 struct Dice
 {
 	int value;
@@ -54,13 +63,30 @@ public:
 private:
 	void loadData();
 	void updateMouseInput();
+	void updateMouseInteractives();
+	void updatePanels();
 	void updateSprites();
 	void updateText();
+
+	void startPlayerTurn();
+	void startEnemyTurn();
+	void updateEnemyTurn();
+
+	void createSprite(std::string texture, glm::vec2 position, bool hoverable, bool draggable);
+	void createSprite(Texture* texture, glm::vec2 position, bool hoverable, bool draggable);
+	void createPanel(glm::vec2 position, int width, int height, std::string text);
 	
 	VulkanEngine* _vulkanEngine;
+	
 	std::vector<Texture> _textures;
 	std::vector<Sprite> _sprites;
+	std::vector<MouseInteractive> _mouseInteractives;
+	std::vector<Sprite> _panels;
+
 	std::unordered_map<std::string, Texture> _textureLookup;
 	MouseState _mouseState;
 	PlayerStats _stats;
+	std::random_device _rd;
+	std::mt19937 _gen;
+	Texture* _panelTexture;
 };

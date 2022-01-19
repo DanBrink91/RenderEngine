@@ -27,14 +27,19 @@ struct SpriteVertexData
 
 struct SpriteDrawData
 {
-	uint32_t textureIndex;
-	glm::vec3 glowColor;
+	alignas(4) int textureIndex;
+	alignas(16) glm::vec3 glowColor;
+};
+
+struct PushConstantData
+{
+	float time;
 };
 
 // CPU only structs
 struct Texture
 {
-	uint32_t id;
+	int id;
 	int width, height;
 	glm::vec2 UV;
 };
@@ -159,6 +164,7 @@ private:
 
 	std::vector<SpriteVertexData> _spriteVertices;
 	std::vector<SpriteDrawData> _spriteDrawData;
+	PushConstantData _pushConstantData;
 
 	std::vector<uint16_t> _indices;
 	stbtt_bakedchar cdata[96]; // ASCII 32..126 is 95 glyphs

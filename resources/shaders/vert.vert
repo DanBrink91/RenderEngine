@@ -23,6 +23,12 @@ layout(set = 0, binding = 1) readonly buffer SpritesDrawData {
 
 layout(location = 0) out vec2 UV;
 layout(location = 1) out int textureIndex;
+layout(location = 2) out float time;
+
+layout(push_constant) uniform PushConstantData
+{
+    float time;
+} pushConstantData;
 
 void main() {
     SpriteVertex sprite = spriteVertex[gl_VertexIndex];
@@ -34,4 +40,5 @@ void main() {
     gl_Position = vec4(sprite.position, 0.0, 1.0);
     UV = sprite.uv;
     textureIndex = dd.textureIndex;
+    time = pushConstantData.time;
 }

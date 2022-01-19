@@ -6,69 +6,7 @@ void GameManager::init(VulkanEngine& vulkanEngine)
 	loadData();
 
 	glfwGetCursorPos(_vulkanEngine->_window, &_mouseState.x, &_mouseState.y);
-}
-
-void GameManager::update() 
-{
-	updateMouseInput();
-	updateSprites();
-	updateText();
-}
-
-void GameManager::updateMouseInput() 
-{
-	_mouseState.previousX = _mouseState.x;
-	_mouseState.previousY = _mouseState.y;
-	glfwGetCursorPos(_vulkanEngine->_window, &_mouseState.x, &_mouseState.y);
-	int leftState = glfwGetMouseButton(_vulkanEngine->_window, GLFW_MOUSE_BUTTON_LEFT);
-	int rightState = glfwGetMouseButton(_vulkanEngine->_window, GLFW_MOUSE_BUTTON_RIGHT);
-	_mouseState.down[0] = GLFW_PRESS == leftState;
-	_mouseState.down[1] = GLFW_PRESS == rightState;
-	
-	// Released drag on a sprite
-	if(leftState == GLFW_RELEASE && _mouseState.dragSpriteIndex != -1)
-	{
-		_mouseState.dragSpriteIndex = -1;
-	} 
-}
-
-void GameManager::updateSprites() 
-{
-	for(size_t i = 0; i < _sprites.size(); i++)
-	{
-		auto& sprite = _sprites[i];
-		// Mouse bounds checking 
-		if(_mouseState.x >= sprite.position.x && _mouseState.y >= sprite.position.y)
-		{
-			int width = sprite.texture->width;
-			int height = sprite.texture->height;
-
-			if(_mouseState.x <= sprite.position.x + width && _mouseState.y <= sprite.position.y + height)
-			{
-				// We're at least hovering here
-				if(_mouseState.down[0])
-				{
-					if(_mouseState.dragSpriteIndex == i)
-					{
-						//  We're dragging this sprite!!
-						sprite.position.x  += _mouseState.x - _mouseState.previousX;
-						sprite.position.y += _mouseState.y - _mouseState.previousY;
-					}
-					else if(_mouseState.dragSpriteIndex == -1)
-					{
-						_mouseState.dragSpriteIndex = i;
-					}
-				}
-			}
-		}
-		
-		_vulkanEngine->drawSprite(sprite);
-	}
-}
-
-void GameManager::updateText() 
-{
-	
+	startPlayerTurn();
 }
 
 void GameManager::loadData() 
@@ -117,10 +55,151 @@ void GameManager::loadData()
 		Texture t = _vulkanEngine->createTextureImage(textureInfo["path"].GetString());
 		_textures.push_back(t);
 		_textureLookup[textureInfo["name"].GetString()] = t;
+		std::cout << textureInfo["name"].GetString() << " ID: " << t.id << std::endl;
 	}
+	_panelTexture = &_textureLookup["panel"];
 
 	// Let's make some sprites!
 	Texture *orcTexture = &_textureLookup["orc"];
-	Sprite orc = {.position={30.0f, 30.0f}, .texture=orcTexture};
+	Sprite orc = {.position={600.0f, 30.0f}, .texture=orcTexture};
 	_sprites.push_back(orc);
+}
+
+void GameManager::createSprite(std::string texture, glm::vec2 position, bool hoverable, bool draggable) 
+{
+	Texture *t = &_textureLookup[texture];
+	Sprite sprite = {.position=position, .texture=t};
+	_sprites.push_back(sprite);
+	if(hoverable)
+	{
+		MouseInteractive mi = {.spriteIndex=static_cast<int>(_sprites.size() - 1), .draggable=draggable};
+		_mouseInteractives.push_back(mi);
+	}
+
+}
+
+void GameManager::createSprite(Texture* texture, glm::vec2 position, bool hoverable, bool draggable) 
+{
+	Sprite sprite = {.position=position, .texture=texture};
+	_sprites.push_back(sprite);
+	if(hoverable)
+	{
+		MouseInteractive mi = {.spriteIndex=static_cast<int>(_sprites.size() - 1), .draggable=draggable};
+		_mouseInteractives.push_back(mi);
+	}
+
+}
+
+void GameManager::update() 
+{
+	updateMouseInput();
+	updateMouseInteractives();
+	updatePanels();
+	updateSprites();
+	updateText();
+}
+
+void GameManager::updateMouseInput() 
+{
+	_mouseState.previousX = _mouseState.x;
+	_mouseState.previousY = _mouseState.y;
+	glfwGetCursorPos(_vulkanEngine->_window, &_mouseState.x, &_mouseState.y);
+	int leftState = glfwGetMouseButton(_vulkanEngine->_window, GLFW_MOUSE_BUTTON_LEFT);
+	int rightState = glfwGetMouseButton(_vulkanEngine->_window, GLFW_MOUSE_BUTTON_RIGHT);
+	_mouseState.down[0] = GLFW_PRESS == leftState;
+	_mouseState.down[1] = GLFW_PRESS == rightState;
+	
+	// Released drag on a sprite
+	if(leftState == GLFW_RELEASE && _mouseState.dragSpriteIndex != -1)
+	{
+		_mouseState.dragSpriteIndex = -1;
+	} 
+}
+
+void GameManager::updateMouseInteractives() 
+{
+	for(size_t i = 0; i < _mouseInteractives.size(); i++)
+	{
+		MouseInteractive mi = _mouseInteractives[i];
+		Sprite& sprite = _sprites[mi.spriteIndex];
+		// Mouse bounds checking 
+		if(_mouseState.x >= sprite.position.x && _mouseState.y >= sprite.position.y)
+		{
+			int width = sprite.texture->width;
+			int height = sprite.texture->height;
+
+			if(_mouseState.x <= sprite.position.x + width && _mouseState.y <= sprite.position.y + height)
+			{
+				// We're at least hovering here
+				if(mi.draggable && _mouseState.down[0])
+				{
+					if(_mouseState.dragSpriteIndex == i)
+					{
+						//  We're dragging this sprite!!
+						sprite.position.x  += _mouseState.x - _mouseState.previousX;
+						sprite.position.y += _mouseState.y - _mouseState.previousY;
+					}
+					else if(_mouseState.dragSpriteIndex == -1)
+					{
+						_mouseState.dragSpriteIndex = i;
+					}
+				}
+			}
+		}
+
+	}
+}
+
+void GameManager::updatePanels() 
+{
+	for(size_t i = 0; i < _panels.size(); i++)
+	{
+		auto& panel = _panels[i];
+		
+		_vulkanEngine->drawSprite(panel);
+	}
+}
+
+void GameManager::updateSprites() 
+{
+	for(size_t i = 0; i < _sprites.size(); i++)
+	{
+		auto& sprite = _sprites[i];
+		
+		_vulkanEngine->drawSprite(sprite);
+	}
+}
+
+void GameManager::updateText() 
+{
+	
+}
+
+void GameManager::startPlayerTurn() 
+{
+	// Roll the dice
+	std::uniform_int_distribution<> distrib(1, 6);
+	for(size_t i = 0; i < _stats.dice.size(); i++)
+	{
+		int value = distrib(_rd);
+		std::string strValue = std::to_string(value);		
+		createSprite(strValue, {10.0f + 90.0f * i, 510.0f}, true, true);
+	}
+	createPanel({100.0f, 150.0f}, 250, 200, std::string("Place dice in here to attack"));
+}
+
+void GameManager::startEnemyTurn() 
+{
+	
+}
+void GameManager::updateEnemyTurn() 
+{
+	
+}
+
+void GameManager::createPanel(glm::vec2 position, int width, int height, std::string text) 
+{
+	_textures.push_back({.id=_panelTexture->id, .width=width, .height=height, .UV=_panelTexture->UV});
+	Sprite panelSprite = {.position=position, .texture=&_textures.back()};
+	_panels.push_back(panelSprite);
 }
