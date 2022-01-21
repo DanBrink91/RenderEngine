@@ -56,6 +56,14 @@ struct PlayerStats
 	std::vector<Dice> dice;
 };
 
+enum GameState
+{
+	Overworld,
+	Battle,
+	Event,
+	Menu
+};
+
 class GameManager {
 public:
 	void init(VulkanEngine& ve);
@@ -77,7 +85,8 @@ private:
 	void createPanel(glm::vec2 position, int width, int height, std::string text);
 	
 	VulkanEngine* _vulkanEngine;
-	
+	GameState _state;
+
 	std::vector<Texture> _textures;
 	std::vector<Sprite> _sprites;
 	std::vector<MouseInteractive> _mouseInteractives;

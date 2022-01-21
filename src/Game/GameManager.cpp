@@ -30,7 +30,7 @@ void GameManager::loadData()
 	rapidjson::ParseResult ok = config.Parse(buffer.c_str());
 	if(!ok)
 	{
-		std::cout << "ERROR Parsing config.json: " << rapidjson::GetParseErrorFunc(ok.Code()) << " " << ok.Offset() << std::endl;
+		//std::cout << "ERROR Parsing config.json: " << rapidjson::GetParseErrorFunc(ok.Code()) << " " << ok.Offset() << std::endl;
 	}
 	// config.Parse(json);
 	// rapidjson::Value& w = config["width"];
