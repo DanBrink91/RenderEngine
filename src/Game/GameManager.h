@@ -13,6 +13,8 @@
 
 #include "../Vulkan/vk_engine.h"
 
+#include "EventManager.h"
+
 #ifdef GetObject
 #undef GetObject
 #endif
@@ -34,7 +36,7 @@ struct MouseState
 	double previousX, previousY;
 	double x, y;
 	bool down[2];
-	int dragSpriteIndex;
+	int dragSpriteIndex = -1;
 };
 
 struct MouseInteractive
@@ -63,6 +65,7 @@ enum GameState
 	Event,
 	Menu
 };
+
 
 class GameManager {
 public:
@@ -98,4 +101,6 @@ private:
 	std::random_device _rd;
 	std::mt19937 _gen;
 	Texture* _panelTexture;
+
+	EventManager _eventManager;
 };

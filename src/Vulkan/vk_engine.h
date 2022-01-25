@@ -18,11 +18,32 @@
 
 
 #include <stb_truetype.h>
+
 // CPU -> GPU structs
 struct SpriteVertexData
 {
 	glm::vec2 position;
 	glm::vec2 uv;
+
+	SpriteVertexData(glm::vec2 Position, glm::vec2 UV)
+	: position(Position), uv(UV) {}
+	
+	// Move Constructor / Assignment
+	SpriteVertexData(SpriteVertexData&& other)
+	: position(other.position), uv(other.uv)
+	{
+	}
+
+	SpriteVertexData& operator=(SpriteVertexData&& other)
+	{
+		if(this != &other)
+		{
+			position = other.position;
+			uv = other.uv;
+		}
+		return *this;
+	}
+
 };
 
 struct SpriteDrawData

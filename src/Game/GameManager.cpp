@@ -55,7 +55,6 @@ void GameManager::loadData()
 		Texture t = _vulkanEngine->createTextureImage(textureInfo["path"].GetString());
 		_textures.push_back(t);
 		_textureLookup[textureInfo["name"].GetString()] = t;
-		std::cout << textureInfo["name"].GetString() << " ID: " << t.id << std::endl;
 	}
 	_panelTexture = &_textureLookup["panel"];
 
@@ -63,6 +62,13 @@ void GameManager::loadData()
 	Texture *orcTexture = &_textureLookup["orc"];
 	Sprite orc = {.position={600.0f, 30.0f}, .texture=orcTexture};
 	_sprites.push_back(orc);
+
+
+	// Event manager
+	uint64_t someID = _eventManager.subscribe(EventTypeBattleStart, [](struct Event* e) {
+		BattleStartEvent* be = static_cast<BattleStartEvent*>(e);
+		std::cout << "Battle Start event triggered! Enemy: " << be->enemyType << std::endl;
+	});
 }
 
 void GameManager::createSprite(std::string texture, glm::vec2 position, bool hoverable, bool draggable) 
@@ -112,6 +118,8 @@ void GameManager::updateMouseInput()
 	// Released drag on a sprite
 	if(leftState == GLFW_RELEASE && _mouseState.dragSpriteIndex != -1)
 	{
+		BattleStartEvent e = {EventTypeBattleStart, 1};
+		_eventManager.notify(EventTypeBattleStart, &e);
 		_mouseState.dragSpriteIndex = -1;
 	} 
 }
