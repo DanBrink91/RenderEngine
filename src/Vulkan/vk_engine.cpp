@@ -70,20 +70,6 @@ void VulkanEngine::init_vulkan()
 		std::cout << "created instance" << std::endl;
 	}
 
-	// drawSprite(100, 100, 64*3, 64*2);
-	//createFontTexture();
-	
-	// stbtt_aligned_quad q;
-	// float x, y;
-	// const char* text = "Hello World!";
-
- // 	stbtt_GetBakedQuad(cdata, 512,512, *text, &x,&y,&q,1);//1=opengl & d3d10+,0=d3d9
- // 	std::cout << q.x0 << ", " << q.y0 << std::endl;
- 	// glTexCoord2f(q.s0,q.t0); glVertex2f(q.x0,q.y0);
- 	// glTexCoord2f(q.s1,q.t0); glVertex2f(q.x1,q.y0);
- 	// glTexCoord2f(q.s1,q.t1); glVertex2f(q.x1,q.y1);
- 	// glTexCoord2f(q.s0,q.t1); glVertex2f(q.x0,q.y1);
-
 	find_physical_device();
 	create_device();
 	createSwapChain();
@@ -106,9 +92,6 @@ void VulkanEngine::init_vulkan()
 
 void VulkanEngine::drawSprite(Sprite sprite)
 {
-	// std::cout << "Drawing sprite!!" << std::endl;
-	// std::cout << sprite.position.x << ",  " << sprite.position.y << std::endl;
-	// std::cout << sprite.texture->width << ", " << sprite.texture->height << std::endl;
 	float screenSpaceLeft = (sprite.position.x / _windowWidth) * 2.0 - 1.0;
 	float screenSpaceRight = (float(sprite.position.x + sprite.texture->width) / _windowWidth) * 2.0 - 1.0;
 
