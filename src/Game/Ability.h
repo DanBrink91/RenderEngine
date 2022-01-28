@@ -11,6 +11,11 @@ enum DiceRequirements
 	LESS_THAN
 };
 
+struct Dice
+{
+	int value;
+};
+
 class BaseAbility 
 {
 public:
@@ -18,8 +23,8 @@ public:
 	BaseAbility();
 	virtual void addHandlers() = 0;
 	virtual void removeHandlers() = 0;
-	virtual bool canUse() = 0; // TODO needs a state parameter or at least Dice[]
-	virtual void use() = 0;
+	virtual bool canUse(Player player, Dice usedDice) = 0; // TODO needs a state parameter or at least Dice[]
+	virtual void use(Player player, Enemy target, Dice dice) = 0;
 
 	std::string name, description;
 	// Panel Color
@@ -33,8 +38,8 @@ public:
 	StrikeAbility();
 	void addHandlers();
 	void removeHandlers();
-	bool canUse();
-	void use();
+	bool canUse(Player player, Dice usedDice);
+	void use(Player player, Enemy target, Dice dice);
 private:
 	int baseDamage = 5;
 	int usesPerTurn = 3;
@@ -46,8 +51,8 @@ public:
 	BlockAbility();
 	void addHandlers();
 	void removeHandlers();
-	bool canUse();
-	void use();
+	bool canUse(Player player, Dice usedDice);
+	void use(Player player, Enemy target, Dice dice);
 private:
 	int baseBlock = 3;
 	int usesPerTurn = 3;
@@ -59,6 +64,6 @@ public:
 	RerollAbility();
 	void addHandlers();
 	void removeHandlers();
-	bool canUse();
-	void use();
+	bool canUse(Player player, Dice usedDice);
+	void use(Player player, Enemy target, Dice dice);
 };
